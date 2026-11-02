@@ -1,0 +1,496 @@
+{% extends "base.html" %}
+{% comment %}
+============================================================
+yolo_camara.html — Detección en vivo desde la cámara
+============================================================
+Propósito: activar la cámara del dispositivo, enviar fotogramas
+al servidor, dibujar las cajas delimitadoras en tiempo real sobre
+el video y permitir capturar una foto con su resumen.
+
+Contexto:
+- modelo: Instancia de ModeloYOLO.
+
+Nota: los navegadores solo entregan la cámara en páginas servidas
+por HTTPS o abiertas desde localhost.
+============================================================
+{% endcomment %}
+
+{% block title %}Detección en vivo: {{ modelo.nombre }} — AgroVision{% endblock %}
+
+{% block extra_css %}
+<style>
+    .camara-container { max-width: 1200px; margin: 2.5rem auto; padding: 0 1.5rem 3rem; }
+
+    .breadcrumb { display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem; }
+    .breadcrumb a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+    .breadcrumb a:hover { color: var(--theme-text-hl); }
+
+    .header-camara { text-align: center; margin-bottom: 2.5rem; }
+    .header-camara h1 { font-size: 2.2rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .header-camara h1 span { background: linear-gradient(to right, var(--theme-grad-1), var(--theme-text-hl)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .header-camara p { color: var(--text-muted); }
+
+    .grid-camara { display: grid; grid-template-columns: 7fr 5fr; gap: 2rem; }
+    @media (max-width: 900px) { .grid-camara { grid-template-columns: 1fr; } }
+
+    .glass-card { background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border); border-radius: 18px; padding: 2rem; position: relative; overflow: hidden; }
+    .card-content { position: relative; z-index: 1; }
+    .card-title { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; color: var(--theme-text-hl); margin-bottom: 1.5rem; }
+
+    /* ── El video con el canvas de las cajas encima ── */
+    .video-box { position: relative; background: rgba(0,0,0,0.45); border: 1px solid var(--glass-border); border-radius: 14px; overflow: hidden; aspect-ratio: 4 / 3; }
+    .video-box video, .video-box canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+    .estado-pill { position: absolute; left: 1rem; top: 1rem; background: rgba(0,0,0,0.65); border: 1px solid var(--glass-border); padding: 0.35rem 0.9rem; border-radius: 999px; font-size: 0.8rem; color: var(--text-muted); backdrop-filter: blur(6px); }
+    .estado-pill.activo { color: #34D399; border-color: rgba(16,185,129,0.4); }
+
+    /* ── Botones ── */
+    .controles { display: flex; gap: 0.8rem; margin-top: 1.5rem; flex-wrap: wrap; }
+    .btn-camara { flex: 1; min-width: 140px; padding: 0.9rem 1rem; border: none; border-radius: 12px; font-size: 0.98rem; font-weight: 700; cursor: pointer; transition: all 0.3s; font-family: 'Outfit', sans-serif; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; }
+    .btn-camara:hover:not(:disabled) { filter: brightness(1.12); transform: translateY(-2px); }
+    .btn-camara:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .btn-iniciar { background: linear-gradient(135deg, var(--theme-grad-1), var(--theme-grad-2)); color: white; }
+    .btn-capturar { background: rgba(59,130,246,0.18); border: 1px solid #3B82F6 !important; color: #93C5FD; }
+    .btn-detener { background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border) !important; color: var(--text-muted); }
+
+    /* ── Métricas de rendimiento (sirven para las pruebas del RNF01) ── */
+    .metricas { display: flex; gap: 1.5rem; margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--glass-border); font-size: 0.85rem; color: var(--text-muted); flex-wrap: wrap; }
+    .metricas strong { color: #34D399; font-weight: 700; }
+
+    /* ── Contadores ── */
+    .resumen-deteccion { display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .stat-box { flex: 1; min-width: 130px; background: rgba(0,0,0,0.25); border: 1px solid var(--glass-border); border-radius: 12px; padding: 1rem; text-align: center; }
+    .stat-numero { font-size: 1.8rem; font-weight: 800; background: linear-gradient(135deg, #10B981, #34D399); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-label { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 0.2rem; }
+
+    /* ── Lista de objetos ── */
+    .lista-detecciones { display: flex; flex-direction: column; gap: 0.8rem; max-height: 340px; overflow-y: auto; }
+    .deteccion-item { background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); border-radius: 12px; padding: 0.9rem 1.1rem; }
+    .deteccion-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .deteccion-clase { font-weight: 700; font-size: 0.98rem; text-transform: capitalize; }
+    .deteccion-pct { font-size: 0.9rem; font-weight: 700; color: #34D399; }
+    .barra-fondo { background: rgba(255,255,255,0.08); border-radius: 999px; height: 6px; overflow: hidden; }
+    .barra-nivel { background: linear-gradient(90deg, var(--theme-grad-1), var(--theme-grad-2)); height: 100%; border-radius: 999px; transition: width 0.2s; }
+
+    .resultado-vacio { color: var(--text-muted); opacity: 0.6; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 220px; text-align: center; }
+
+    /* ── Avisos y confirmación de captura ── */
+    .aviso-error { background: rgba(239,68,68,0.1); border-left: 4px solid #F87171; padding: 1rem 1.2rem; border-radius: 8px; margin-bottom: 2rem; color: #FCA5A5; font-size: 0.92rem; line-height: 1.5; }
+    .captura-ok { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.35); border-radius: 12px; padding: 1.1rem 1.3rem; margin-top: 1.5rem; }
+    .captura-ok h3 { margin: 0 0 0.4rem; font-size: 0.95rem; color: #34D399; }
+    .captura-ok p { margin: 0 0 0.6rem; font-size: 0.9rem; color: var(--text-main); text-transform: capitalize; }
+    .captura-ok a { color: #34D399; font-size: 0.85rem; font-weight: 600; text-decoration: none; }
+    .captura-ok a:hover { text-decoration: underline; }
+
+    .oculto { display: none !important; }
+
+    /* ── Filtro de clases (RF12) ── */
+    .filtro-clases { display: flex; align-items: center; gap: 0.7rem; margin-top: 1.1rem; font-size: 0.9rem; color: var(--text-muted); flex-wrap: wrap; }
+    .filtro-clases select { flex: 1; min-width: 200px; background: rgba(0,0,0,0.3); color: var(--text-main); border: 1px solid var(--glass-border); border-radius: 10px; padding: 0.6rem 0.8rem; font-family: 'Outfit', sans-serif; font-size: 0.92rem; cursor: pointer; }
+    .filtro-clases option { background: #111827; color: #E5E7EB; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="camara-container">
+
+    {# ── Breadcrumb ─────────────────────────────────────────────────────────── #}
+    <div class="breadcrumb" style="justify-content: space-between;">
+        <div>
+            <a href="{% url 'dashboard' %}">Dashboard</a> <span>/</span>
+            <a href="{% url 'yolo_lista' %}">Detección YOLO</a> <span>/</span>
+            <a href="{% url 'yolo_ejecutar' modelo.pk %}">{{ modelo.nombre }}</a> <span>/</span>
+            <span>En vivo</span>
+        </div>
+        <div style="display:flex; gap:0.7rem;">
+            <a href="{% url 'yolo_galeria' %}" style="display:inline-flex; align-items:center; gap:0.5rem; padding:0.7rem 1.4rem; background:rgba(16,185,129,0.15); border:1px solid var(--primary); color:var(--primary); border-radius:12px; font-size:0.92rem; font-weight:600; text-decoration:none;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                Ver galería
+            </a>
+            <a href="{% url 'yolo_ejecutar' modelo.pk %}" style="display:inline-flex; align-items:center; gap:0.5rem; padding:0.7rem 1.4rem; background:rgba(255,255,255,0.06); border:1px solid var(--glass-border); color:var(--text-muted); border-radius:12px; font-size:0.92rem; font-weight:600; text-decoration:none;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                Volver a imagen
+            </a>
+        </div>
+    </div>
+
+    {# ── Título ─────────────────────────────────────────────────────────────── #}
+    <div class="header-camara">
+        <h1>Detección en vivo: <span>{{ modelo.nombre }}</span></h1>
+        <p>Apunta la cámara y el modelo marcará los objetos en tiempo real. Captura una foto para guardarla en el historial.</p>
+    </div>
+
+    {# ── Aviso cuando el navegador no entrega la cámara ──────────────────────── #}
+    <div id="aviso" class="aviso-error oculto"></div>
+
+    <div class="grid-camara">
+
+        {# ── COLUMNA IZQUIERDA: la cámara ───────────────────────────────────── #}
+        <div class="glass-card">
+            <div class="card-content">
+                <h2 class="card-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                    Cámara
+                </h2>
+
+                <div class="video-box">
+                    <video id="video" autoplay playsinline muted></video>
+                    <canvas id="overlay"></canvas>
+                    <div class="estado-pill" id="estado">Cámara apagada</div>
+                </div>
+
+                <div class="controles">
+                    <button id="btn-iniciar" class="btn-camara btn-iniciar">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        Encender cámara
+                    </button>
+                    <button id="btn-capturar" class="btn-camara btn-capturar" disabled>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        Capturar
+                    </button>
+                    <button id="btn-detener" class="btn-camara btn-detener" disabled>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                        Detener
+                    </button>
+                </div>
+
+                <div class="filtro-clases">
+                    <label for="filtro-clases">Mostrar:</label>
+                    <select id="filtro-clases">
+                        <option value="">Todas las clases del modelo</option>
+                        <option value="perro,gato">Solo perros y gatos</option>
+                    </select>
+                </div>
+
+                <div class="metricas">
+                    <span>Inferencias por segundo: <strong id="m-fps">0.0</strong></span>
+                    <span>Tiempo por fotograma: <strong id="m-ms">0</strong> ms</span>
+                </div>
+            </div>
+        </div>
+
+        {# ── COLUMNA DERECHA: lo detectado ──────────────────────────────────── #}
+        <div class="glass-card">
+            <div class="card-content">
+                <h2 class="card-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg>
+                    Objetos Detectados
+                </h2>
+
+                <div class="resumen-deteccion">
+                    <div class="stat-box">
+                        <div class="stat-numero" id="c-total">0</div>
+                        <div class="stat-label">Objetos finales</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-numero" id="c-cand">0</div>
+                        <div class="stat-label">Candidatos filtrados</div>
+                    </div>
+                </div>
+
+                <div id="lista">
+                    <div class="resultado-vacio">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:1rem;"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg>
+                        <p>Enciende la cámara para<br>empezar a detectar.</p>
+                    </div>
+                </div>
+
+                <div id="captura-ok" class="captura-ok oculto">
+                    <h3>Captura guardada en el historial</h3>
+                    <p id="captura-resumen"></p>
+                    <a id="captura-link" href="#" target="_blank">Ver la imagen con las cajas</a>
+                </div>
+
+                {# ── Parámetros del modelo ──────────────────────────────────── #}
+                <div style="margin-top:1.75rem; padding-top:1.5rem; border-top:1px solid var(--glass-border);">
+                    <div style="display:flex; justify-content:space-between; font-size:0.85rem; padding:0.4rem 0; color:var(--text-muted);">
+                        <span>Tamaño de entrada</span><strong style="color:var(--text-main);">{{ modelo.tamano_entrada }}×{{ modelo.tamano_entrada }} px</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:0.85rem; padding:0.4rem 0; color:var(--text-muted);">
+                        <span>Umbral de confianza</span><strong style="color:var(--text-main);">{{ modelo.umbral_confianza }}</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:0.85rem; padding:0.4rem 0; color:var(--text-muted);">
+                        <span>Umbral IoU (NMS)</span><strong style="color:var(--text-main);">{{ modelo.umbral_iou }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% csrf_token %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/**
+ * Detección en vivo desde la cámara.
+ *
+ * El navegador toma fotogramas del video, los reduce y los manda al servidor.
+ * El servidor responde con las coordenadas de cada objeto y acá se dibujan
+ * encima del video sobre un canvas transparente.
+ *
+ * Mientras un fotograma se está procesando no se manda otro (RF10), para que
+ * no se acumulen peticiones si el servidor va más lento que la cámara.
+ */
+document.addEventListener('DOMContentLoaded', function () {
+
+    const video   = document.getElementById('video');
+    const overlay = document.getElementById('overlay');
+    const ctx     = overlay.getContext('2d');
+    const estado  = document.getElementById('estado');
+    const aviso   = document.getElementById('aviso');
+    const lista   = document.getElementById('lista');
+
+    const btnIniciar  = document.getElementById('btn-iniciar');
+    const btnCapturar = document.getElementById('btn-capturar');
+    const btnDetener  = document.getElementById('btn-detener');
+    const filtro      = document.getElementById('filtro-clases');
+
+    // RF12: clases que el usuario quiere ver; vacío = todas
+    function clasesElegidas() {
+        return filtro.value ? filtro.value.split(',') : [];
+    }
+    // Al cambiar el filtro se borran las cajas viejas para no mostrar
+    // por un instante clases que ya no se quieren ver
+    filtro.addEventListener('change', () => { detecciones = []; });
+
+    // Lienzo oculto donde se arma cada fotograma antes de enviarlo
+    const buffer = document.createElement('canvas');
+    const bctx   = buffer.getContext('2d');
+
+    const URL_FRAME    = "{% url 'yolo_frame' modelo.pk %}";
+    const URL_CAPTURAR = "{% url 'yolo_capturar' modelo.pk %}";
+    const CSRF = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    // Ancho al que se reduce el fotograma antes de mandarlo.
+    // Más pequeño viaja más rápido y el servidor responde antes.
+    const LADO_MAX = 640;
+
+    let stream = null;
+    let corriendo = false;
+    let ocupado = false;                      // ← control de la tasa (RF10)
+    let detecciones = [];
+    let tamFotograma = { ancho: 1, alto: 1 };
+    let tiempos = [];
+
+    // ── Encender la cámara ──────────────────────────────────────────────────
+    async function iniciar() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            mostrarAviso('Este navegador no entrega la cámara porque la página no se está ' +
+                         'sirviendo de forma segura. Ábrela con HTTPS o desde localhost.');
+            return;
+        }
+
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'environment' },
+                audio: false
+            });
+        } catch (e) {
+            if (e.name === 'NotAllowedError') {
+                mostrarAviso('No diste permiso para usar la cámara. Habilítala desde el candado ' +
+                             'de la barra de direcciones y recarga la página.');
+            } else if (e.name === 'NotFoundError') {
+                mostrarAviso('No se encontró ninguna cámara en este dispositivo.');
+            } else {
+                mostrarAviso('No se pudo abrir la cámara: ' + e.message);
+            }
+            return;
+        }
+
+        video.srcObject = stream;
+        await video.play();
+
+        overlay.width  = video.videoWidth;
+        overlay.height = video.videoHeight;
+
+        // El recuadro se adapta a lo que entregue la cámara, para que no
+        // queden franjas negras cuando el celular graba en vertical
+        document.querySelector('.video-box').style.aspectRatio =
+            video.videoWidth + ' / ' + video.videoHeight;
+
+        corriendo = true;
+        btnIniciar.disabled  = true;
+        btnCapturar.disabled = false;
+        btnDetener.disabled  = false;
+        estado.textContent = 'Detectando';
+        estado.classList.add('activo');
+        aviso.classList.add('oculto');
+
+        bucle();
+    }
+
+    // ── Ciclo principal ─────────────────────────────────────────────────────
+    async function bucle() {
+        if (!corriendo) return;
+
+        if (!ocupado && video.videoWidth > 0) {
+            ocupado = true;
+            const inicio = performance.now();
+            try {
+                const datos = await enviarFotograma();
+                if (datos && datos.ok) {
+                    detecciones  = datos.detecciones;
+                    tamFotograma = { ancho: datos.ancho, alto: datos.alto };
+                    pintarLista(datos);
+                    medir(performance.now() - inicio);
+                }
+            } catch (e) {
+                console.warn('Fotograma con error:', e);
+            }
+            ocupado = false;
+        }
+
+        dibujarCajas();
+        requestAnimationFrame(bucle);
+    }
+
+    async function enviarFotograma() {
+        // Se reduce por el lado más largo, para que una foto vertical
+        // no quede enorme y lenta de enviar
+        const escala = Math.min(1, LADO_MAX / Math.max(video.videoWidth, video.videoHeight));
+        buffer.width  = Math.round(video.videoWidth  * escala);
+        buffer.height = Math.round(video.videoHeight * escala);
+        bctx.drawImage(video, 0, 0, buffer.width, buffer.height);
+
+        const resp = await fetch(URL_FRAME, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({ imagen: buffer.toDataURL('image/jpeg', 0.6), clases: clasesElegidas() })
+        });
+        return await resp.json();
+    }
+
+    // ── Dibujar las cajas sobre el video ────────────────────────────────────
+    function dibujarCajas() {
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+        if (!detecciones.length) return;
+
+        // Las coordenadas llegan en el tamaño del fotograma enviado,
+        // hay que escalarlas al tamaño real del video
+        const ex = overlay.width  / tamFotograma.ancho;
+        const ey = overlay.height / tamFotograma.alto;
+
+        ctx.lineWidth = Math.max(2, overlay.width / 300);
+        // El tamaño se guarda aparte: leerlo luego de ctx.font con parseInt
+        // devolvería el grosor de la letra (600), no el tamaño.
+        const tamFuente = Math.max(14, Math.round(overlay.width / 48));
+        ctx.font = '600 ' + tamFuente + "px 'Outfit', sans-serif";
+        ctx.textBaseline = 'top';
+
+        detecciones.forEach(function (d) {
+            const x1 = d.caja[0] * ex, y1 = d.caja[1] * ey;
+            const w  = (d.caja[2] - d.caja[0]) * ex;
+            const h  = (d.caja[3] - d.caja[1]) * ey;
+
+            ctx.strokeStyle = '#10B981';
+            ctx.strokeRect(x1, y1, w, h);
+
+            const texto    = d.clase + ' ' + Math.round(d.confianza) + '%';
+            const anchoTxt = ctx.measureText(texto).width;
+            const altoTxt  = tamFuente + 8;
+            const yEtiq    = (y1 - altoTxt >= 0) ? y1 - altoTxt : y1;
+
+            ctx.fillStyle = '#10B981';
+            ctx.fillRect(x1, yEtiq, anchoTxt + 14, altoTxt);
+            ctx.fillStyle = '#06281E';
+            ctx.fillText(texto, x1 + 7, yEtiq + 4);
+        });
+    }
+
+    // ── Panel lateral ───────────────────────────────────────────────────────
+    function pintarLista(datos) {
+        document.getElementById('c-total').textContent = datos.total;
+        document.getElementById('c-cand').textContent  = datos.candidatos;
+
+        if (!datos.detecciones.length) {
+            lista.innerHTML = '<div class="resultado-vacio"><p>No se detectan objetos<br>en este momento.</p></div>';
+            return;
+        }
+
+        let html = '<div class="lista-detecciones">';
+        datos.detecciones.forEach(function (d) {
+            html += '<div class="deteccion-item">' +
+                        '<div class="deteccion-top">' +
+                            '<span class="deteccion-clase">' + d.clase + '</span>' +
+                            '<span class="deteccion-pct">' + d.confianza + '%</span>' +
+                        '</div>' +
+                        '<div class="barra-fondo">' +
+                            '<div class="barra-nivel" style="width:' + d.confianza + '%"></div>' +
+                        '</div>' +
+                    '</div>';
+        });
+        html += '</div>';
+        lista.innerHTML = html;
+    }
+
+    // Promedio de los últimos 10 fotogramas — sirve para verificar el RNF01
+    function medir(ms) {
+        tiempos.push(ms);
+        if (tiempos.length > 10) tiempos.shift();
+        const prom = tiempos.reduce(function (a, b) { return a + b; }, 0) / tiempos.length;
+        document.getElementById('m-ms').textContent  = Math.round(prom);
+        document.getElementById('m-fps').textContent = (1000 / prom).toFixed(1);
+    }
+
+    // ── Capturar la foto del momento ────────────────────────────────────────
+    async function capturar() {
+        btnCapturar.disabled = true;
+        estado.textContent = 'Guardando captura';
+
+        // La captura va en tamaño completo, no reducida
+        const full = document.createElement('canvas');
+        full.width  = video.videoWidth;
+        full.height = video.videoHeight;
+        full.getContext('2d').drawImage(video, 0, 0);
+
+        try {
+            const resp = await fetch(URL_CAPTURAR, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                body: JSON.stringify({ imagen: full.toDataURL('image/jpeg', 0.9), clases: clasesElegidas() })
+            });
+            const datos = await resp.json();
+
+            if (datos.ok) {
+                document.getElementById('captura-resumen').textContent = datos.resumen;
+                document.getElementById('captura-link').href = datos.imagen_url;
+                document.getElementById('captura-ok').classList.remove('oculto');
+            } else {
+                mostrarAviso('No se pudo guardar la captura: ' + datos.error);
+            }
+        } catch (e) {
+            mostrarAviso('No se pudo guardar la captura: ' + e.message);
+        }
+
+        estado.textContent = corriendo ? 'Detectando' : 'Cámara apagada';
+        btnCapturar.disabled = false;
+    }
+
+    // ── Apagar ──────────────────────────────────────────────────────────────
+    function detener() {
+        corriendo = false;
+        if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+        estado.textContent = 'Cámara apagada';
+        estado.classList.remove('activo');
+        btnIniciar.disabled  = false;
+        btnCapturar.disabled = true;
+        btnDetener.disabled  = true;
+    }
+
+    function mostrarAviso(texto) {
+        aviso.textContent = texto;
+        aviso.classList.remove('oculto');
+        estado.textContent = 'Cámara no disponible';
+        estado.classList.remove('activo');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    btnIniciar.addEventListener('click', iniciar);
+    btnCapturar.addEventListener('click', capturar);
+    btnDetener.addEventListener('click', detener);
+    window.addEventListener('beforeunload', detener);
+});
+</script>
+{% endblock %}

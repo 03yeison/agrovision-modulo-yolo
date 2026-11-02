@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+{% comment %}
+============================================================
+index.html — Inicio de Sesión (Login)
+============================================================
+Propósito: Punto de entrada para usuarios registrados.
+Características:
+- Diseño split (Hero animado + Formulario glass).
+- Sistema de temas (Green/Indigo).
+- Alertas de error/éxito con Alpine.js.
+============================================================
+{% endcomment %}
+
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI File Manager - Inicio</title>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --primary: #10B981;
+            --primary-hover: #059669;
+            --secondary: #10B981;
+            --background-dark: #0f172a;
+            --glass-bg: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(255, 255, 255, 0.15);
+            --text-main: #F8FAFC;
+            --text-muted: #94A3B8;
+            
+            /* Theme Variables */
+            --theme-bg-orb-1: #10B981;
+            --theme-badge-text: #34D399;
+            --theme-title-grad-1: #34D399;
+            --theme-title-grad-2: #6EE7B7;
+            --theme-btn-grad-1: var(--primary);
+            --theme-btn-grad-2: #34D399;
+            --theme-link-color: #34D399;
+        }
+
+        [data-theme="indigo"] {
+            --primary: #4F46E5;
+            --primary-hover: #4338CA;
+            --secondary: #4F46E5;
+            
+            --theme-bg-orb-1: #4F46E5;
+            --theme-badge-text: #818CF8;
+            --theme-title-grad-1: #818CF8;
+            --theme-title-grad-2: #C084FC;
+            --theme-btn-grad-1: var(--primary);
+            --theme-btn-grad-2: #818CF8;
+            --theme-link-color: #818CF8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background-color: var(--background-dark);
+            color: var(--text-main);
+            overflow-x: hidden;
+            display: flex;
+        }
+
+        /* Animated Background */
+        .bg-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            overflow: hidden;
+            background: radial-gradient(circle at top right, #312e81 0%, #0f172a 100%);
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.6;
+            animation: float 20s infinite ease-in-out alternate;
+        }
+
+        .orb-1 {
+            width: 40vw;
+            height: 40vw;
+            background: var(--theme-bg-orb-1);
+            top: -10%;
+            left: -10%;
+            animation-delay: 0s;
+        }
+
+        .orb-2 {
+            width: 35vw;
+            height: 35vw;
+            background: #9333EA;
+            bottom: -10%;
+            right: -10%;
+            animation-delay: -5s;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            100% {
+                transform: translate(10vw, 10vh) scale(1.1);
+            }
+        }
+
+        /* Layout Main */
+        .split-layout {
+            display: flex;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        /* Left Side - Hero */
+        .hero-section {
+            flex: 1.2;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 4rem;
+            position: relative;
+        }
+
+        .hero-content {
+            max-width: 600px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            background: rgba(79, 70, 229, 0.2);
+            border: 1px solid rgba(79, 70, 229, 0.3);
+            border-radius: 9999px;
+            color: var(--theme-badge-text);
+            font-size: 0.875rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .hero-title {
+            font-size: clamp(3rem, 5vw, 5rem);
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(to right, #fff, #94A3B8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero-title span {
+            background: linear-gradient(to right, var(--theme-title-grad-1), var(--theme-title-grad-2));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero-subtitle {
+            font-size: 1.25rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        /* Right Side - Form */
+        .form-section {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            position: relative;
+        }
+
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 3rem;
+            width: 100%;
+            max-width: 480px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transform: translateY(20px);
+            opacity: 0;
+            animation: slideUpFade 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes slideUpFade {
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .form-header {
+            margin-bottom: 2.5rem;
+        }
+
+        .form-header h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-header p {
+            color: var(--text-muted);
+        }
+
+        /* Alpine Alerts */
+        .alerts-wrapper {
+            margin-bottom: 1.5rem;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            backdrop-filter: blur(10px);
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #FECACA;
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #A7F3D0;
+        }
+
+        /* Form Controls */
+        .input-group {
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #E2E8F0;
+            transition: color 0.3s;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: white;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .input-field::placeholder {
+            color: rgba(148, 163, 184, 0.5);
+        }
+
+        .input-field:focus {
+            background: rgba(15, 23, 42, 0.6);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
+        }
+
+        .input-field:focus+label {
+            color: var(--primary);
+        }
+
+        /* Button */
+        .btn-submit {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, var(--theme-btn-grad-1) 0%, var(--theme-btn-grad-2) 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            margin-top: 1rem;
+            box-shadow: 0 10px 20px -10px rgba(79, 70, 229, 0.5);
+        }
+
+        .btn-submit::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: 0.5s;
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 25px -10px rgba(79, 70, 229, 0.7);
+        }
+
+        .btn-submit:hover::after {
+            left: 100%;
+        }
+
+        .btn-submit:active {
+            transform: translateY(1px);
+        }
+
+        /* Footer */
+        .auth-footer {
+            margin-top: 2rem;
+            text-align: center;
+            font-size: 0.95rem;
+            color: var(--text-muted);
+        }
+
+        .auth-footer a {
+            color: #34D399;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+            position: relative;
+        }
+
+        .auth-footer a::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            transform: scaleX(0);
+            height: 2px;
+            bottom: -2px;
+            left: 0;
+            background-color: var(--theme-link-color);
+            transform-origin: bottom right;
+            transition: transform 0.3s ease-out;
+        }
+
+        .auth-footer a:hover::after {
+            transform: scaleX(1);
+            transform-origin: bottom left;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .hero-section {
+                padding: 3rem 2rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .split-layout {
+                flex-direction: column;
+            }
+
+            .hero-section {
+                flex: none;
+                padding: 4rem 2rem 2rem;
+                text-align: center;
+                min-height: 40vh;
+            }
+
+            .badge {
+                margin: 0 auto 2rem;
+            }
+
+            .hero-content {
+                margin: 0 auto;
+            }
+
+            .hero-title {
+                font-size: 2.5rem;
+            }
+
+            .form-section {
+                padding: 0 1.5rem 3rem;
+                align-items: flex-start;
+            }
+
+            .glass-panel {
+                padding: 2rem 1.5rem;
+            }
+        }
+    </style>
+</head>
+
+<body x-data="{ theme: localStorage.getItem('theme') || 'green' }" x-init="document.documentElement.setAttribute('data-theme', theme)">
+    <!-- Theme Switcher -->
+    <button @click="theme = theme === 'green' ? 'indigo' : 'green'; localStorage.setItem('theme', theme); document.documentElement.setAttribute('data-theme', theme);" style="position:fixed; top:20px; right:20px; z-index:100; background:var(--glass-bg); border:1px solid var(--glass-border); padding:10px; border-radius:50%; color:var(--text-main); cursor:pointer; backdrop-filter: blur(10px);" title="Cambiar Tema">
+        <svg x-show="theme === 'green'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+        </svg>
+        <svg x-show="theme === 'indigo'" style="display: none;" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><path d="M12 2v20M12 12l8.5-8.5"/>
+        </svg>
+    </button>
+    
+    <!-- Background Animated -->
+    <div class="bg-container">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+    </div>
+
+    <div class="split-layout">
+        <!-- Hero Section -->
+        <div class="hero-section">
+            <div class="hero-content">
+                <div class="badge">Inteligencia Artificial</div>
+                <h1 class="hero-title">Gestión de archivos <span>evolucionada.</span></h1>
+                <p class="hero-subtitle">Experimenta el futuro del almacenamiento estructurado. Modelos de Machine
+                    Learning a tu servicio para organizar tus proyectos.</p>
+            </div>
+        </div>
+
+        <!-- Form Section -->
+        <div class="form-section">
+            <div class="glass-panel">
+                <div class="form-header">
+                    <h2>Bienvenido de vuelta</h2>
+                    <p>Ingresa tus credenciales para acceder</p>
+                </div>
+
+                <!-- Alertas con Alpine.js para auto-cierre suave -->
+                {% if messages %}
+                <div class="alerts-wrapper">
+                    {% for message in messages %}
+                    <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)"
+                        x-transition:enter="transition ease-out duration-300"
+                        x-transition:enter-start="opacity-0 transform -translate-y-2"
+                        x-transition:enter-end="opacity-100 transform translate-y-0"
+                        x-transition:leave="transition ease-in duration-300"
+                        x-transition:leave-start="opacity-100 transform translate-y-0"
+                        x-transition:leave-end="opacity-0 transform -translate-y-2"
+                        class="alert alert-{{ message.tags }}">
+                        <span>{{ message }}</span>
+                        <button @click="show = false"
+                            style="background:none; border:none; color:inherit; cursor:pointer; font-size:1.2rem;">&times;</button>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <form method="post" action="{% url 'login' %}">
+                    {% csrf_token %}
+
+                    <div class="input-group">
+                        <label for="username">Usuario</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="username" name="username" class="input-field"
+                                placeholder="tu_usuario" required autofocus>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <label for="password" style="margin-bottom: 0;">Contraseña</label>
+                            <a href="{% url 'password_reset' %}" style="color: var(--theme-link-color); font-size: 0.85rem; text-decoration: none; font-weight: 500;">¿Olvidaste tu contraseña?</a>
+                        </div>
+                        <div class="input-wrapper" x-data="{ show: false }" style="position: relative;">
+                            <input :type="show ? 'text' : 'password'" id="password" name="password" class="input-field"
+                                placeholder="••••••••" required>
+                            <button type="button" @click="show = !show" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                                <svg x-show="!show" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                <svg x-show="show" style="display: none;" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-submit">
+                        Iniciar Sesión
+                    </button>
+                </form>
+
+                <div class="auth-footer">
+                    ¿No tienes una cuenta? <a href="{% url 'register' %}">Regístrate ahora</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

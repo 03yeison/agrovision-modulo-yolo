@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+{% comment %}
+============================================================
+email_2fa.html — Plantilla de Correo OTP
+============================================================
+Propósito: Cuerpo del correo electrónico enviado al usuario
+con su código de verificación de 6 dígitos.
+============================================================
+{% endcomment %}
+
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <title>Código de Verificación</title>
+</head>
+<body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f4f5; padding: 20px; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
+        
+        {% comment %} Header {% endcomment %}
+
+        <div style="background-color: #10B981; padding: 35px 20px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 28px; letter-spacing: 1px;">
+                AGRO<span style="opacity: 0.8; font-weight: 300;">VISION</span>
+            </h1>
+            <p style="color: #d1fae5; margin: 10px 0 0 0; font-size: 15px;">Seguridad Reforzada</p>
+        </div>
+        
+        {% comment %} Content {% endcomment %}
+
+        <div style="padding: 40px 30px;">
+            <h2 style="margin-top: 0; color: #1f2937; font-size: 22px;">Hola, {{ nombre }}:</h2>
+            <p style="color: #4b5563; line-height: 1.6; font-size: 16px;">
+                Hemos recibido una solicitud para iniciar sesión en tu cuenta de <strong>AgroVision</strong>. 
+                Usa el siguiente código de verificación de 6 dígitos para confirmar tu identidad e ingresar a la plataforma:
+            </p>
+            
+            <div style="text-align: center; margin: 40px 0;">
+                <span style="display: inline-block; font-size: 38px; font-weight: bold; letter-spacing: 12px; color: #10B981; background-color: #ecfdf5; padding: 20px 40px; border-radius: 12px; border: 2px dashed #6EE7B7; text-align: center;">
+                    {{ otp_code }}
+                </span>
+            </div>
+            
+            <p style="color: #4b5563; line-height: 1.6; font-size: 15px;">
+                <span style="font-size: 18px;">⏳</span> <strong>Importante:</strong> Este código expirará en <strong>5 minutos</strong> y solo puede ser usado una vez.
+            </p>
+            
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+            
+            <p style="color: #6b7280; line-height: 1.5; font-size: 13px; margin: 0;">
+                ⚠️ Si no has intentado iniciar sesión en la plataforma, por favor ignora este mensaje o contacta al administrador de forma inmediata, ya que alguien podría estar intentando acceder a tu cuenta.
+            </p>
+        </div>
+        
+        {% comment %} Footer {% endcomment %}
+
+        <div style="background-color: #f9fafb; padding: 25px 20px; text-align: center; border-top: 1px solid #f3f4f6;">
+            <p style="margin: 0; color: #9ca3af; font-size: 13px;">© 2026 <strong>AgroVision</strong></p>
+            <p style="margin: 5px 0 0 0; color: #9ca3af; font-size: 12px;">Universidad</p>
+            <p style="margin: 5px 0 0 0; color: #9ca3af; font-size: 11px;">Plataforma Web para Modelos Machine Learning</p>
+        </div>
+        
+    </div>
+</body>
+</html>

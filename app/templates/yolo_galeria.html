@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% comment %}
+============================================================
+yolo_galeria.html — Galería de capturas de la cámara en vivo
+============================================================
+Propósito: Mostrar todas las fotos tomadas con la detección en
+vivo (origen='camara'), con su resumen y fecha, paginadas.
+
+Contexto:
+- page_obj: Página actual de DeteccionYOLO (origen='camara').
+- per_page: Cantidad de tarjetas por página elegida.
+- total:    Total de capturas que cumplen el filtro.
+- es_admin: Si el usuario ve las capturas de todos.
+============================================================
+{% endcomment %}
+
+{% block title %}Galería de capturas — AgroVision{% endblock %}
+
+{% block extra_css %}
+<style>
+    .galeria-container { max-width: 1200px; margin: 2.5rem auto; padding: 0 1.5rem 3rem; }
+
+    .breadcrumb { display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem; }
+    .breadcrumb a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+    .breadcrumb a:hover { color: var(--theme-text-hl); }
+
+    .header-galeria { text-align: center; margin-bottom: 2.5rem; }
+    .header-galeria h1 { font-size: 2.2rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .header-galeria h1 span { background: linear-gradient(to right, var(--theme-grad-1), var(--theme-text-hl)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .header-galeria p { color: var(--text-muted); }
+
+    .galeria-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1.25rem; }
+    .galeria-item { background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border); border-radius: 16px; overflow: hidden; position: relative; transition: transform 0.2s; }
+    .galeria-item:hover { transform: translateY(-3px); }
+    .galeria-item img { width: 100%; height: 160px; object-fit: cover; display: block; background: rgba(0,0,0,0.3); }
+    .galeria-info { padding: 0.9rem 1.1rem; }
+    .galeria-resumen { font-size: 0.85rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.3rem; text-transform: capitalize; }
+    .galeria-meta { font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; }
+    .galeria-badge { display: inline-flex; align-items: center; gap: 0.3rem; background: rgba(16,185,129,0.15); color: var(--primary); border: 1px solid rgba(16,185,129,0.3); border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.7rem; font-weight: 700; }
+    .galeria-eliminar { position: absolute; top: 0.6rem; right: 0.6rem; width: 30px; height: 30px; border-radius: 50%; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.15); color: #FCA5A5; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.2s; }
+    .galeria-item:hover .galeria-eliminar { opacity: 1; }
+
+    .galeria-vacio { color: var(--text-muted); opacity: 0.7; text-align: center; padding: 4rem 1rem; }
+
+    .paginacion { display: flex; justify-content: center; align-items: center; gap: 0.6rem; margin-top: 2.5rem; }
+    .paginacion a, .paginacion span { padding: 0.5rem 0.9rem; border-radius: 8px; font-size: 0.85rem; text-decoration: none; color: var(--text-muted); border: 1px solid var(--glass-border); }
+    .paginacion a:hover { color: var(--theme-text-hl); border-color: var(--theme-text-hl); }
+    .paginacion .activa { background: linear-gradient(135deg, var(--theme-grad-1), var(--theme-grad-2)); color: white; border: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="galeria-container">
+
+    {# ── Breadcrumb ─────────────────────────────────────────────────────────── #}
+    <div class="breadcrumb" style="justify-content: space-between;">
+        <div>
+            <a href="{% url 'dashboard' %}">Dashboard</a> <span>/</span>
+            <a href="{% url 'yolo_lista' %}">Detección YOLO</a> <span>/</span>
+            <span>Galería de capturas</span>
+        </div>
+        <a href="{% url 'yolo_lista' %}" style="display:inline-flex; align-items:center; gap:0.5rem; padding:0.7rem 1.4rem; background:linear-gradient(135deg, var(--theme-grad-1), var(--theme-grad-2)); color:white; border-radius:12px; font-size:0.92rem; font-weight:600; text-decoration:none;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Volver al catálogo
+        </a>
+    </div>
+
+    {# ── Título ─────────────────────────────────────────────────────────────── #}
+    <div class="header-galeria">
+        <h1>Galería de <span>capturas en vivo</span></h1>
+        <p>{{ total }} foto{{ total|pluralize }} tomada{{ total|pluralize }} con la detección en vivo desde la cámara.</p>
+    </div>
+
+    {% if page_obj %}
+    <div class="galeria-grid">
+        {% for d in page_obj %}
+        <div class="galeria-item">
+            <button class="galeria-eliminar" title="Eliminar captura" onclick="eliminarCaptura({{ d.pk }})">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <a href="{% url 'yolo_deteccion_detalle' d.pk %}" style="display:block; text-decoration:none;">
+                {% if d.imagen_resultado %}
+                <img src="{{ d.imagen_resultado.url }}" alt="Captura de cámara">
+                {% endif %}
+            </a>
+            <div class="galeria-info">
+                <div class="galeria-resumen">{{ d.resumen|default:"Sin detecciones" }}</div>
+                <div class="galeria-meta">
+                    <span>{{ d.fecha_ejecucion|date:"d M Y, H:i" }}</span>
+                    <span class="galeria-badge">{{ d.total_detecciones }} obj.</span>
+                </div>
+                {% if es_admin %}
+                <div class="galeria-meta" style="margin-top:0.3rem;">{{ d.usuario.username }} · {{ d.modelo.nombre|default:"—" }}</div>
+                {% else %}
+                <div class="galeria-meta" style="margin-top:0.3rem;">{{ d.modelo.nombre|default:"—" }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <form id="form-eliminar-{{ d.pk }}" method="POST" action="{% url 'yolo_galeria_eliminar' d.pk %}" style="display:none;">
+            {% csrf_token %}
+        </form>
+        {% endfor %}
+    </div>
+
+    {# ── Paginación ──────────────────────────────────────────────────────────── #}
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="paginacion">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&per_page={{ per_page }}">Anterior</a>
+        {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+            {% if num == page_obj.number %}
+            <span class="activa">{{ num }}</span>
+            {% else %}
+            <a href="?page={{ num }}&per_page={{ per_page }}">{{ num }}</a>
+            {% endif %}
+        {% endfor %}
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&per_page={{ per_page }}">Siguiente</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="galeria-vacio">
+        <p>Todavía no has guardado ninguna captura desde la cámara.</p>
+        <p style="margin-top:0.5rem;"><a href="{% url 'yolo_lista' %}" style="color: var(--theme-text-hl);">Elige un modelo y abre la detección en vivo</a> para empezar.</p>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function eliminarCaptura(pk) {
+        if (confirm('¿Eliminar esta captura de la galería?')) {
+            document.getElementById('form-eliminar-' + pk).submit();
+        }
+    }
+</script>
+{% endblock %}

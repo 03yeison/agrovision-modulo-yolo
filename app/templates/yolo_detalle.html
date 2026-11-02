@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% comment %}
+============================================================
+yolo_detalle.html — Ficha de un modelo YOLO
+============================================================
+Contexto:
+- modelo:            Instancia de ModeloYOLO.
+- detecciones:       Últimas 8 detecciones hechas con este modelo.
+- total_detecciones: Total de detecciones del modelo.
+- clases:            Lista de nombres de clases configurados.
+- es_admin:          Si el usuario puede editar o eliminar.
+============================================================
+{% endcomment %}
+
+{% block title %}{{ modelo.nombre }} — AgroVision{% endblock %}
+
+{% block extra_css %}
+<style>
+    .det-container { max-width: 1100px; margin: 2.5rem auto; padding: 0 1.5rem 3rem; }
+
+    .breadcrumb { display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem; flex-wrap: wrap; }
+    .breadcrumb a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+    .breadcrumb a:hover { color: var(--theme-text-hl); }
+
+    .det-header { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1.5rem; margin-bottom: 2rem; }
+    .det-header h1 { font-size: 2.2rem; font-weight: 800; margin: 0 0 0.4rem; }
+    .det-header h1 span { background: linear-gradient(to right, var(--theme-grad-1), var(--theme-text-hl)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .det-header p { color: var(--text-muted); margin: 0; max-width: 60ch; }
+
+    .badge-estado { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.75rem; font-weight: 700; padding: 0.25rem 0.7rem; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .badge-activo { background: rgba(16,185,129,0.15); color: var(--primary); border: 1px solid rgba(16,185,129,0.35); }
+    .badge-inactivo { background: rgba(239,68,68,0.12); color: #FCA5A5; border: 1px solid rgba(239,68,68,0.3); }
+
+    .acciones { display: flex; gap: 0.7rem; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.7rem 1.3rem; border-radius: 12px; font-size: 0.9rem; font-weight: 600; text-decoration: none; cursor: pointer; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.06); color: var(--text-main); font-family: inherit; }
+    .btn-pri { background: linear-gradient(135deg, var(--theme-grad-1), var(--theme-grad-2)); color: white; border: none; }
+    .btn-del { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.3); color: #FCA5A5; }
+
+    .grid-info { display: grid; grid-template-columns: 7fr 5fr; gap: 1.5rem; }
+    @media (max-width: 880px) { .grid-info { grid-template-columns: 1fr; } }
+
+    .glass-card { background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border); border-radius: 18px; padding: 1.75rem; }
+    .card-title { font-size: 1.05rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; color: var(--theme-text-hl); margin: 0 0 1.25rem; }
+
+    .param-row { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.9rem; padding: 0.6rem 0; color: var(--text-muted); border-bottom: 1px solid var(--glass-border); }
+    .param-row:last-child { border-bottom: none; }
+    .param-row strong { color: var(--text-main); font-weight: 600; text-align: right; word-break: break-word; }
+
+    .clases-lista { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .clase-chip { background: rgba(0,0,0,0.25); border: 1px solid var(--glass-border); border-radius: 999px; padding: 0.3rem 0.75rem; font-size: 0.78rem; color: var(--text-muted); }
+
+    .det-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+    .det-item { background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: 12px; overflow: hidden; text-decoration: none; color: inherit; display: block; transition: transform 0.2s; }
+    .det-item:hover { transform: translateY(-3px); }
+    .det-item img { width: 100%; height: 110px; object-fit: cover; display: block; background: rgba(0,0,0,0.3); }
+    .det-item-info { padding: 0.6rem 0.8rem; font-size: 0.75rem; color: var(--text-muted); }
+    .det-item-info strong { display: block; color: var(--text-main); font-size: 0.82rem; margin-bottom: 0.15rem; }
+
+    .vacio { color: var(--text-muted); opacity: 0.7; text-align: center; padding: 2rem 1rem; font-size: 0.9rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="det-container">
+
+    <div class="breadcrumb">
+        <a href="{% url 'dashboard' %}">Dashboard</a> <span>/</span>
+        <a href="{% url 'yolo_lista' %}">Detección YOLO</a> <span>/</span>
+        <span>{{ modelo.nombre }}</span>
+    </div>
+
+    <div class="det-header">
+        <div>
+            <h1><span>{{ modelo.nombre }}</span></h1>
+            <p>{{ modelo.descripcion }}</p>
+            <div style="margin-top:0.8rem;">
+                {% if modelo.estado == 'activo' %}
+                <span class="badge-estado badge-activo">Activo</span>
+                {% else %}
+                <span class="badge-estado badge-inactivo">Inactivo</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="acciones">
+            {% if modelo.estado == 'activo' %}
+            <a href="{% url 'yolo_ejecutar' modelo.pk %}" class="btn btn-pri">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                Detectar
+            </a>
+            <a href="{% url 'yolo_camara' modelo.pk %}" class="btn">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                En vivo
+            </a>
+            {% endif %}
+            {% if es_admin %}
+            <a href="{% url 'yolo_editar' modelo.pk %}" class="btn">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
+                Editar
+            </a>
+            <form method="POST" action="{% url 'yolo_eliminar' modelo.pk %}" onsubmit="return confirm('¿Eliminar el modelo {{ modelo.nombre }}?');" style="margin:0;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-del">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                    Eliminar
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="grid-info">
+
+        <div class="glass-card">
+            <h2 class="card-title">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6M4.2 4.2l4.3 4.3m7 7l4.3 4.3M1 12h6m10 0h6M4.2 19.8l4.3-4.3m7-7l4.3-4.3"/></svg>
+                Parámetros de inferencia
+            </h2>
+            <div class="param-row"><span>Tamaño de entrada</span><strong>{{ modelo.tamano_entrada }} × {{ modelo.tamano_entrada }} px</strong></div>
+            <div class="param-row"><span>Umbral de confianza</span><strong>{{ modelo.umbral_confianza }}</strong></div>
+            <div class="param-row"><span>Umbral IoU (NMS)</span><strong>{{ modelo.umbral_iou }}</strong></div>
+            <div class="param-row"><span>Clases configuradas</span><strong>{% if clases %}{{ clases|length }}{% else %}80 (COCO){% endif %}</strong></div>
+            <div class="param-row"><span>Archivo</span><strong>{{ modelo.archivo_modelo.name|cut:"modelos_yolo/" }}</strong></div>
+            <div class="param-row"><span>Registrado por</span><strong>{{ modelo.usuario.username|default:"—" }}</strong></div>
+            <div class="param-row"><span>Detecciones realizadas</span><strong>{{ total_detecciones }}</strong></div>
+
+            {% if clases %}
+            <div style="margin-top:1.5rem;">
+                <h2 class="card-title" style="font-size:0.95rem; margin-bottom:0.8rem;">Clases que detecta</h2>
+                <div class="clases-lista">
+                    {% for c in clases %}<span class="clase-chip">{{ c }}</span>{% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <p style="margin-top:1.25rem; font-size:0.83rem; color:var(--text-muted);">
+                Sin clases personalizadas: se usan las 80 clases del dataset COCO.
+            </p>
+            {% endif %}
+        </div>
+
+        <div class="glass-card">
+            <h2 class="card-title">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Últimas detecciones
+            </h2>
+            {% if detecciones %}
+            <div class="det-grid" style="margin-top:0;">
+                {% for d in detecciones %}
+                <a href="{% url 'yolo_deteccion_detalle' d.pk %}" class="det-item">
+                    {% if d.imagen_resultado %}<img src="{{ d.imagen_resultado.url }}" alt="Detección">{% endif %}
+                    <div class="det-item-info">
+                        <strong>{{ d.total_detecciones }} objeto{{ d.total_detecciones|pluralize }}</strong>
+                        {{ d.get_origen_display }} · {{ d.fecha_ejecucion|date:"d M, H:i" }}
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="vacio">Este modelo todavía no se ha ejecutado.</p>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endblock %}

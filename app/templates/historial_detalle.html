@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Detalle de Ejecución — AgroVision{% endblock %}
+
+{% block extra_css %}
+<style>
+    .detalle-container { max-width: 900px; margin: 2.5rem auto; padding: 0 1.5rem 3rem; }
+    .breadcrumb { display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem; }
+    .breadcrumb a { color: var(--text-muted); text-decoration: none; } .breadcrumb a:hover { color: var(--theme-text-hl); }
+
+    .glass-card { background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border); border-radius: 18px; padding: 2rem; }
+
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+    @media (max-width: 640px) { .detail-grid { grid-template-columns: 1fr; } }
+
+    .detail-image { width: 100%; border-radius: 12px; border: 1px solid var(--glass-border); object-fit: contain; max-height: 360px; background: rgba(0,0,0,0.3); }
+    .detail-image-placeholder { width: 100%; height: 240px; border-radius: 12px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.03); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 3rem; }
+
+    .info-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 0.3rem; }
+    .info-value { font-size: 1rem; color: var(--text-main); font-weight: 500; }
+
+    .resultado-big { font-size: 1.6rem; font-weight: 800; background: linear-gradient(135deg, var(--theme-grad-1), var(--theme-text-hl)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+
+    .info-row { padding: 1rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .info-row:last-child { border-bottom: none; }
+
+    .badge-user { background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3); color: #FCD34D; padding: 0.25rem 0.65rem; border-radius: 999px; font-size: 0.8rem; font-weight: 700; }
+
+    .action-bar { display: flex; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
+    .btn-back { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.7rem 1.4rem; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 12px; color: var(--text-muted); font-weight: 600; text-decoration: none; transition: all 0.2s; font-size: 0.9rem; }
+    .btn-back:hover { background: rgba(255,255,255,0.1); color: var(--text-main); }
+    .btn-del { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.7rem 1.4rem; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); border-radius: 12px; color: #F87171; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.9rem; }
+    .btn-del:hover { background: rgba(239,68,68,0.2); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="detalle-container">
+
+    <div class="breadcrumb">
+        <a href="{% url 'dashboard' %}">Dashboard</a> /
+        <a href="{% url 'historial_lista' %}">Historial</a> /
+        <span>Detalle #{{ historial.pk }}</span>
+    </div>
+
+    <div class="glass-card">
+        <div class="detail-grid">
+
+            {# Izquierda: Imagen #}
+            <div>
+                {% if historial.imagen %}
+                <img src="{{ historial.imagen.url }}" alt="Imagen de la ejecución" class="detail-image">
+                {% else %}
+                <div class="detail-image-placeholder">📷</div>
+                {% endif %}
+            </div>
+
+            {# Derecha: Información #}
+            <div>
+                <div class="info-row">
+                    <div class="info-label">Resultado</div>
+                    <div class="resultado-big">{{ historial.resultado }}</div>
+                </div>
+
+                <div class="info-row">
+                    <div class="info-label">Modelo Utilizado</div>
+                    <div class="info-value">
+                        {% if historial.modelo %}
+                        <a href="{% url 'modelo_detalle' historial.modelo.pk %}" style="color: var(--theme-text-hl); text-decoration: none;">
+                            {{ historial.modelo.nombre }}
+                        </a>
+                        <div style="font-size:0.8rem; color: var(--text-muted);">{{ historial.modelo.categoria|capfirst }}</div>
+                        {% else %}
+                        <span style="color: var(--text-muted); font-style: italic;">Modelo eliminado</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="info-row">
+                    <div class="info-label">📍 Ubicación</div>
+                    <div class="info-value">{{ historial.ubicacion|default:"No especificada" }}</div>
+                </div>
+
+                <div class="info-row">
+                    <div class="info-label">🗓 Fecha de Ejecución</div>
+                    <div class="info-value">{{ historial.fecha_ejecucion|date:"d \d\e F \d\e Y, H:i:s" }}</div>
+                </div>
+
+                {% if es_admin %}
+                <div class="info-row">
+                    <div class="info-label">Usuario</div>
+                    <div class="info-value">
+                        <span class="badge-user">{{ historial.usuario.username }}</span>
+                        <span style="color: var(--text-muted); font-size: 0.82rem; margin-left: 0.5rem;">{{ historial.usuario.get_full_name }}</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="action-bar">
+            <a href="{% url 'historial_lista' %}" class="btn-back">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                Volver al Historial
+            </a>
+            <form method="post" action="{% url 'historial_eliminar' historial.pk %}" onsubmit="return confirm('¿Eliminar esta ejecución permanentemente?');">
+                {% csrf_token %}
+                <button type="submit" class="btn-del">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                    Eliminar Ejecución
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

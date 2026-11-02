@@ -1,0 +1,13 @@
+/media
+.env    
+
+
+
+venv/
+db.sqlite3
+__pycache__/
+*.pyc
+staticfiles/
+Documentos_TG/
+*.antes_rf12
+.claude/

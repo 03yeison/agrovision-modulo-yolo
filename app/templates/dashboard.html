@@ -1,0 +1,652 @@
+{% extends "base.html" %}
+{% comment %}
+============================================================
+dashboard.html — Panel de Control Principal
+============================================================
+Propósito: Sirve como punto de entrada tras el login.
+
+Secciones:
+1. Hero: Mensaje de bienvenida con ilustración SVG animada.
+2. Resumen General: Estadísticas dinámicas de modelos y ejecuciones.
+3. Accesos Rápidos: Atajos visuales a las funcionalidades del sistema.
+============================================================
+{% endcomment %}
+
+{% block title %}Dashboard | AgroVision{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Hero Section matching the layout requested */
+    .hero-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 3rem;
+        padding: 2rem 0 4rem 0;
+    }
+
+    .hero-content {
+        flex: 1;
+        max-width: 600px;
+    }
+
+    .hero-content h1 {
+        font-size: 3.8rem;
+        font-weight: 800;
+        line-height: 1.1;
+        margin-bottom: 1.2rem;
+        color: var(--text-main);
+    }
+
+    .hero-content h1 span {
+        background: linear-gradient(135deg, #10B981 0%, #34D399 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .hero-content p {
+        color: var(--text-muted);
+        font-size: 1.15rem;
+        margin-bottom: 2.5rem;
+        line-height: 1.6;
+    }
+
+    .btn-hero {
+        padding: 1rem 2.5rem;
+        background: #10B981;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 1.1rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-hero:hover {
+        background: #059669;
+        transform: translateY(-2px);
+    }
+
+    .hero-image-wrapper {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .hero-image-wrapper svg {
+        width: 130%;
+        max-width: 700px;
+        height: auto;
+        transform: scale(1.15) translateX(-20px);
+    }
+
+    /* Contenedores pequeños en vertical */
+    .stats-vertical-container {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        margin-bottom: 3rem;
+    }
+
+    .stat-card-horizontal {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        padding: 1.2rem 2rem;
+        backdrop-filter: blur(10px);
+        transition: transform 0.2s, background 0.2s;
+    }
+
+    .stat-card-horizontal:hover {
+        transform: translateX(10px);
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .stat-h-left {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+    }
+
+    .stat-icon {
+        width: 45px;
+        height: 45px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .icon-blue {
+        background: rgba(59, 130, 246, 0.15);
+        color: #60A5FA;
+    }
+
+    .icon-purple {
+        background: rgba(168, 85, 247, 0.15);
+        color: #C084FC;
+    }
+
+    .icon-green {
+        background: rgba(16, 185, 129, 0.15);
+        color: #34D399;
+    }
+
+    .icon-indigo {
+        background: rgba(99, 102, 241, 0.15);
+        color: var(--theme-text-hl);
+    }
+
+    .stat-h-label {
+        font-size: 1.1rem;
+        font-weight: 500;
+        color: var(--text-muted);
+    }
+
+    .stat-h-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-main);
+    }
+
+    @media (max-width: 900px) {
+        .hero-container {
+            flex-direction: column;
+            text-align: center;
+            padding: 2rem 0;
+        }
+
+        .hero-image-wrapper {
+            order: -1;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card-horizontal {
+            flex-direction: column;
+            text-align: center;
+            gap: 1rem;
+        }
+
+        .stat-h-left {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .stat-card-horizontal:hover {
+            transform: translateY(-5px) translateX(0);
+        }
+    }
+
+    /* Action Cards */
+    .section-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .action-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .action-card {
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(10px);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .action-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+        border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .action-card-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .action-icon-small {
+        font-size: 1.5rem;
+    }
+
+    .action-card h3 {
+        font-size: 1.25rem;
+        color: var(--text-main);
+        font-weight: 600;
+    }
+
+    .action-card p {
+        color: var(--text-muted);
+        line-height: 1.5;
+        flex-grow: 1;
+    }
+
+    .action-footer {
+        margin-top: 1.5rem;
+        font-size: 0.9rem;
+        color: var(--primary);
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: gap 0.2s;
+    }
+
+        .action-card:hover .action-footer {
+            gap: 0.75rem;
+        }
+        
+        /* Interacciones y Animaciones del SVG (Red Neuronal) */
+        .hero-image-wrapper svg {
+            transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            filter: drop-shadow(0 0 10px rgba(0,0,0,0.1));
+            overflow: visible;
+        }
+        
+        .hero-image-wrapper:hover svg {
+            transform: scale(1.06) translateY(-10px);
+            filter: drop-shadow(0 20px 20px rgba(0,0,0,0.3));
+        }
+
+        .svg-node {
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            cursor: pointer;
+        }
+        
+        .svg-node:hover {
+            transform: scale(1.15);
+            filter: brightness(1.3) drop-shadow(0 0 8px var(--theme-text-hl));
+        }
+
+        @keyframes svgPulse {
+            0% { transform: scale(0.8); opacity: 0.8; }
+            100% { transform: scale(2.5); opacity: 0; }
+        }
+        
+        .svg-pulse {
+            animation: svgPulse 2.5s infinite ease-out;
+        }
+
+        @keyframes svgTravel1 {
+            0% { transform: translate(0, 0); opacity: 0; }
+            15% { opacity: 1; }
+            85% { opacity: 1; }
+            100% { transform: translate(60px, 20px); opacity: 0; }
+        }
+        
+        @keyframes svgTravel2 {
+            0% { transform: translate(0, 0); opacity: 0; }
+            15% { opacity: 1; }
+            85% { opacity: 1; }
+            100% { transform: translate(40px, 10px); opacity: 0; }
+        }
+
+        .svg-packet-1 { animation: svgTravel1 3s infinite linear; }
+        .svg-packet-2 { animation: svgTravel2 4s infinite linear; animation-delay: 1s; }
+
+        .svg-path {
+            stroke-dasharray: 8 8;
+            animation: dashMove 20s linear infinite;
+        }
+        
+        @keyframes dashMove {
+            to { stroke-dashoffset: -200; }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+{% comment %} Hero Section {% endcomment %}
+<div class="hero-container">
+    <div class="hero-content">
+        <h1>Plataforma web para <br><span>Modelos Machine Learning</span></h1>
+        <p>Una herramienta centralizada para gestionar, documentar y ejecutar los modelos de IA de la plataforma AgroVision.</p>
+        <a href="{% url 'modelos_lista' %}" class="btn-hero">Ver Modelos →</a>
+    </div>
+
+    {% comment %} Imagen SVG abstracta sobre Machine Learning a la derecha {% endcomment %}
+    <div class="hero-image-wrapper">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" fill="none">
+            {% comment %} Glowing background elements {% endcomment %}
+            <circle cx="200" cy="150" r="100" fill="var(--primary)" opacity="0.1" filter="blur(30px)" />
+            <circle cx="250" cy="100" r="80" fill="var(--primary)" opacity="0.1" filter="blur(30px)" />
+
+            {% comment %} Base Network Grid {% endcomment %}
+            <path d="M50 200 L150 150 L250 180 L350 130" stroke="var(--primary)" stroke-width="2" stroke-dasharray="5 5"
+                opacity="0.3" />
+            <path d="M100 100 L200 120 L300 80" stroke="var(--primary-hover)" stroke-width="2" stroke-dasharray="5 5" opacity="0.5"/>
+            <path d="M150 150 L200 120 M250 180 L300 80" stroke="#60A5FA" stroke-width="1" opacity="0.3" />
+
+            {% comment %} Main Nodes {% endcomment %}
+            {% comment %} Left Node {% endcomment %}
+            <g class="svg-node" style="transform-origin: 150px 150px;">
+                <rect x="130" y="130" width="40" height="40" rx="8" fill="#1e293b" stroke="var(--primary)" stroke-width="2" />
+                <circle cx="150" cy="150" r="8" fill="var(--primary)" />
+                <circle cx="150" cy="150" r="6" fill="var(--theme-text-hl)" />
+                <circle cx="150" cy="150" r="14" fill="none" stroke="var(--primary)" stroke-width="1.5" class="svg-pulse" />
+            </g>
+
+            {% comment %} Center Main Node {% endcomment %}
+            <g class="svg-node" style="transform-origin: 255px 175px;">
+                <rect x="230" y="150" width="50" height="50" rx="10" fill="#1e293b" stroke="var(--primary)" stroke-width="2" />
+                <path d="M245 175 L255 160 L265 175 Z" fill="var(--theme-text-hl)" />
+                <circle cx="255" cy="170" r="22" fill="none" stroke="var(--theme-text-hl)" stroke-width="1.5" class="svg-pulse" style="animation-delay: 0.8s;" />
+            </g>
+
+            {% comment %} Top Node {% endcomment %}
+            <g class="svg-node" style="transform-origin: 200px 120px;">
+                <rect x="180" y="100" width="40" height="40" rx="8" fill="#1e293b" stroke="var(--theme-text-hl)" stroke-width="2" />
+                <rect x="190" y="115" width="20" height="10" rx="2" fill="var(--theme-text-hl)" />
+                <circle cx="200" cy="120" r="18" fill="none" stroke="var(--primary)" stroke-width="1.5" class="svg-pulse" style="animation-delay: 1.6s;" />
+            </g>
+
+            {% comment %} Connecting Lines {% endcomment %}
+            <path d="M170 150 L230 170" stroke="var(--primary)" stroke-width="3" class="svg-path" />
+            <path d="M200 140 L240 150" stroke="var(--primary-hover)" stroke-width="3" class="svg-path" style="animation-delay: 1s;" />
+
+            {% comment %} Data packets (small circles) {% endcomment %}
+            <circle cx="170" cy="150" r="4" fill="#ffffff" class="svg-packet-1" />
+            <circle cx="200" cy="140" r="3" fill="#ffffff" class="svg-packet-2" />
+        </svg>
+    </div>
+</div>
+
+<h3 class="section-title">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        style="color:var(--text-muted)">
+        <path d="M12 20V10M18 20V4M6 20v-4" />
+    </svg>
+    Resumen General
+</h3>
+
+{% comment %} Tarjetas Pequeñas en Vertical {% endcomment %}
+<div class="stats-vertical-container">
+    <div class="stat-card-horizontal">
+        <div class="stat-h-left">
+            <div class="stat-icon icon-blue">🧠</div>
+            <div class="stat-h-label">Modelos Activos</div>
+        </div>
+        <div class="stat-h-value">{{ modelos_activos|default:"0" }}</div>
+    </div>
+
+    <div class="stat-card-horizontal">
+        <div class="stat-h-left">
+            <div class="stat-icon icon-purple">⚡</div>
+            <div class="stat-h-label">Ejecuciones Totales</div>
+        </div>
+        <div class="stat-h-value">{{ ejecuciones_totales|default:"0" }}</div>
+    </div>
+
+    <div class="stat-card-horizontal">
+        <div class="stat-h-left">
+            <div class="stat-icon icon-green">📄</div>
+            <div class="stat-h-label">Experimentos Documentados</div>
+        </div>
+        <div class="stat-h-value">{{ experimentos_doc|default:"0" }}</div>
+    </div>
+
+    {# ── Módulo de detección de objetos YOLO ──────────────────────────── #}
+    <div class="stat-card-horizontal">
+        <div class="stat-h-left">
+            <div class="stat-icon icon-blue">🎯</div>
+            <div class="stat-h-label">Modelos YOLO Activos</div>
+        </div>
+        <div class="stat-h-value">{{ modelos_yolo|default:"0" }}</div>
+    </div>
+
+    <div class="stat-card-horizontal">
+        <div class="stat-h-left">
+            <div class="stat-icon icon-purple">🔍</div>
+            <div class="stat-h-label">Detecciones Realizadas</div>
+        </div>
+        <div class="stat-h-value">{{ detecciones_totales|default:"0" }}</div>
+    </div>
+
+    <div class="stat-card-horizontal">
+        <div class="stat-h-left">
+            <div class="stat-icon icon-green">📷</div>
+            <div class="stat-h-label">Capturas desde Cámara</div>
+        </div>
+        <div class="stat-h-value">{{ capturas_camara|default:"0" }}</div>
+    </div>
+</div>
+
+<!-- Fin de la sección de estadísticas generales -->
+
+{% comment %}
+============================================================
+FOOTER DE DASHBOARD (EXCLUSIVO)
+============================================================
+Footer renderizado únicamente en el dashboard que mantiene la estética verde ("Institucional") y 
+disposición en 4 columnas separadas por líneas según el boceto solicitado,
+incorporando información base para la Universidad.
+============================================================
+{% endcomment %}
+<style>
+    .dashboard-footer {
+        margin-top: 4rem;
+        background-color: var(--primary); /* Verde principal (#10B981) o usar #009688 */
+        border-radius: 12px 12px 12px 12px;
+        overflow: hidden;
+        color: white;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    
+    .footer-main-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        padding: 2.5rem 3rem;
+        gap: 1.5rem;
+    }
+    
+    .footer-col {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex: 1;
+        min-width: 200px;
+    }
+    
+    /* Separadores verticales entre columnas */
+    .footer-col:not(:last-child) {
+        border-right: 1px solid rgba(255,255,255,0.4);
+        padding-right: 1.5rem;
+    }
+
+    .footer-icon-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.3rem;
+    }
+    
+    .footer-icon-wrapper svg {
+        opacity: 0.9;
+    }
+    
+    .footer-col-text {
+        font-size: 0.77rem;
+        line-height: 1.35;
+        color: rgba(255,255,255,0.95);
+        flex: 1;
+    }
+    
+    .footer-col-title {
+        font-weight: 700;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* Franja oscura inferior */
+    .footer-sub-bar {
+        background-color: rgba(0, 0, 0, 0.15); /* Efecto oscurecedor automático */
+        padding: 0.8rem;
+        text-align: center;
+        font-size: 0.8rem;
+    }
+    
+    .footer-sub-bar a {
+        color: rgba(255,255,255,0.7);
+        text-decoration: none;
+        margin: 0 0.5rem;
+        transition: color 0.3s;
+    }
+    
+    .footer-sub-bar a:hover {
+        color: white;
+    }
+    
+    .footer-logo {
+        font-size: 1.5rem;
+        font-style: italic;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        line-height: 1;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    /* Suscripción input */
+    .subscribe-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        width: 100%;
+        max-width: 250px;
+    }
+    
+    .subscribe-group input {
+        width: 100%;
+        padding: 0.4rem 0.6rem;
+        border-radius: 4px;
+        border: none;
+        outline: none;
+        font-size: 0.85rem;
+        color: #333;
+    }
+    
+    .subscribe-group button {
+        background: rgba(255,255,255,0.3);
+        color: white;
+        border: none;
+        padding: 0.3rem 0;
+        border-radius: 4px;
+        font-size: 0.65rem;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: background 0.3s;
+        width: 100px;
+        align-self: flex-end;
+    }
+    
+    .subscribe-group button:hover {
+        background: white;
+        color: var(--primary);
+    }
+    
+    @media (max-width: 968px) {
+        .footer-col:not(:last-child) {
+            border-right: none;
+            border-bottom: 1px solid rgba(255,255,255,0.3);
+            padding-right: 0;
+            padding-bottom: 1.5rem;
+        }
+        .footer-main-bar {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .subscribe-group button {
+            align-self: flex-start;
+        }
+    }
+</style>
+
+<div class="dashboard-footer">
+    <div class="footer-main-bar">
+        
+        <!-- Columna 1: Logo -->
+        <div class="footer-col" style="flex: 0.5;">
+            <div class="footer-logo">
+                AGRO<br>VISION
+            </div>
+        </div>
+        
+        <!-- Columna 2: Contacto -->
+        <div class="footer-col" style="flex: 1.2;">
+            <div class="footer-icon-wrapper">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                <span class="footer-col-title">Contacto</span>
+            </div>
+            <div class="footer-col-text">
+                <strong>Soporte Técnico</strong><br>
+                correo@ejemplo.com<br>
+                Universidad. Monitoreo y ejecución de modelos agrícolas.
+            </div>
+        </div>
+        
+        <!-- Columna 3: Síguenos -->
+        <div class="footer-col" style="flex: 1.2;">
+            <div class="footer-icon-wrapper">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                <span class="footer-col-title">Síguenos</span>
+            </div>
+            <div class="footer-col-text">
+                Encuéntranos en nuestras redes para conocer más de los proyectos institucionales de Inteligencia Artificial.
+            </div>
+        </div>
+        
+        <!-- Columna 4: Suscríbete -->
+        <div class="footer-col" style="border-right: none; flex: 1.2;" x-data="{ email: '' }">
+            <div class="footer-icon-wrapper" style="margin-right: 0.5rem;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>
+                <span class="footer-col-title" style="font-size: 0.70rem;">Suscríbete</span>
+            </div>
+            <div class="subscribe-group">
+                <input type="email" x-model="email" placeholder="Tu correo aquí...">
+                <button type="button" @click="if(email){ alert('¡Gracias por suscribirte!'); email=''; } else { alert('Por favor, ingresa un correo.'); }">Suscribirme</button>
+            </div>
+        </div>
+        
+    </div>
+    
+    <!-- Barra Inferior -->
+    <div class="footer-sub-bar">
+        <a href="#">Términos Institucionales</a> | 
+        <a href="#">Privacidad Académica</a> | 
+        <a href="{% url 'nosotros' %}">Acerca de AgroVision</a> | 
+        <a href="#">Universidad</a>
+    </div>
+</div>
+
+{% endblock %}

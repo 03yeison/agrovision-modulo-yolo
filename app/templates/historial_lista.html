@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}Historial de Ejecuciones — AgroVision{% endblock %}
+
+{% block extra_css %}
+<style>
+    .historial-container { max-width: 1200px; margin: 2.5rem auto; padding: 0 1.5rem 3rem; }
+
+    .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+    .page-header h1 { font-size: 2rem; font-weight: 700; }
+    .page-header h1 span { background: linear-gradient(to right, var(--theme-grad-1), var(--theme-text-hl)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .page-header p { color: var(--text-muted); margin-top: 0.25rem; font-size: 0.9rem; }
+
+    /* Table card */
+    .table-card { background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: 18px; overflow: hidden; }
+
+    /* Toolbar (search + per-page) */
+    .table-toolbar { display: flex; align-items: center; justify-content: flex-end; padding: 1rem 1.5rem; border-bottom: 1px solid var(--glass-border); gap: 0.75rem; flex-wrap: wrap; }
+    .per-page-label { color: var(--text-muted); font-size: 0.85rem; }
+    .per-page-select { background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: var(--text-main); padding: 0.4rem 0.75rem; font-size: 0.85rem; font-family: 'Outfit', sans-serif; cursor: pointer; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; }
+    thead th { padding: 0.9rem 1.25rem; text-align: left; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); border-bottom: 1px solid var(--glass-border); }
+    tbody tr { transition: background 0.15s; }
+    tbody tr:hover { background: rgba(255,255,255,0.03); }
+    tbody td { padding: 0.9rem 1.25rem; font-size: 0.9rem; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; }
+    tbody tr:last-child td { border-bottom: none; }
+
+    .thumb { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; border: 1px solid var(--glass-border); }
+    .thumb-placeholder { width: 52px; height: 52px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 1.2rem; }
+
+    .resultado-badge { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.25); color: #34D399; padding: 0.25rem 0.65rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
+
+    .btn-detail { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.85rem; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-muted); font-size: 0.82rem; font-weight: 600; text-decoration: none; transition: all 0.2s; }
+    .btn-detail:hover { background: rgba(255,255,255,0.1); color: var(--text-main); }
+
+    .btn-delete { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.85rem; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); border-radius: 8px; color: #F87171; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-delete:hover { background: rgba(239,68,68,0.15); }
+
+    /* Pagination + footer */
+    .table-footer { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.5rem; border-top: 1px solid var(--glass-border); flex-wrap: wrap; gap: 0.75rem; }
+    .pagination-info { color: var(--text-muted); font-size: 0.85rem; }
+    .pagination-links { display: flex; gap: 0.5rem; }
+    .page-link { padding: 0.35rem 0.8rem; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: var(--text-muted); font-size: 0.85rem; text-decoration: none; transition: all 0.15s; }
+    .page-link:hover { background: rgba(255,255,255,0.1); color: var(--text-main); }
+    .page-link.active { background: var(--primary); border-color: var(--primary); color: white; font-weight: 700; }
+
+    .empty-state { text-align: center; padding: 4rem 2rem; color: var(--text-muted); }
+    .empty-state h3 { font-size: 1.2rem; margin-top: 1rem; }
+
+    /* ── Filtro por categoría ── */
+    .filtro-categoria { display: flex; align-items: center; gap: 0.7rem; }
+    .filtro-categoria label { color: var(--text-muted); font-size: 0.88rem; font-weight: 600; }
+    .filtro-categoria select {
+        background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
+        color: var(--text-main); border-radius: 10px; padding: 0.6rem 1rem;
+        font-size: 0.9rem; font-family: inherit; cursor: pointer; min-width: 170px;
+    }
+    .filtro-categoria select:focus { outline: none; border-color: var(--primary); }
+
+    /* ── Etiqueta del tipo de ejecución ── */
+    .tipo-badge { display: inline-block; font-size: 0.68rem; font-weight: 700; padding: 0.15rem 0.5rem;
+        border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 0.25rem; }
+    .tipo-ml { background: rgba(139,92,246,0.15); color: #C4B5FD; border: 1px solid rgba(139,92,246,0.3); }
+    .tipo-yolo { background: rgba(16,185,129,0.15); color: #6EE7B7; border: 1px solid rgba(16,185,129,0.3); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="historial-container">
+
+    <div class="page-header">
+        <div>
+            <h1>Historial de <span>Ejecuciones</span></h1>
+            <p>
+                {% if es_admin %}Todas las ejecuciones del sistema.{% else %}Tus ejecuciones de inferencia.{% endif %}
+                Total: <strong>{{ total }}</strong>
+            </p>
+        </div>
+
+        {# ── Filtro por categoría de ejecución ──────────────────────────── #}
+        <form method="get" class="filtro-categoria">
+            <label for="categoria">Categoría</label>
+            <select name="categoria" id="categoria" onchange="this.form.submit()">
+                <option value="todas" {% if categoria == 'todas' %}selected{% endif %}>Todas</option>
+                <option value="ml" {% if categoria == 'ml' %}selected{% endif %}>Modelos ML</option>
+                <option value="yolo" {% if categoria == 'yolo' %}selected{% endif %}>Detección YOLO</option>
+            </select>
+            <input type="hidden" name="per_page" value="{{ per_page }}">
+        </form>
+    </div>
+
+    <div class="table-card">
+
+        {# Toolbar: per-page selector #}
+        <form method="get" class="table-toolbar">
+            <span class="per-page-label">Mostrar por página:</span>
+            <input type="hidden" name="categoria" value="{{ categoria }}">
+            <select name="per_page" class="per-page-select" onchange="this.form.submit()">
+                <option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
+                <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+            </select>
+        </form>
+
+        {% if page_obj.object_list %}
+        <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Imagen</th>
+                    {% if es_admin %}<th>Usuario</th>{% endif %}
+                    <th>Modelo</th>
+                    <th>Tipo</th>
+                    <th>Resultado</th>
+                    <th>Ubicación</th>
+                    <th>Fecha</th>
+                    <th style="text-align:right;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in page_obj %}
+                <tr>
+                    <td>
+                        {% if item.imagen_url %}
+                        <img src="{{ item.imagen_url }}" alt="Imagen" class="thumb">
+                        {% else %}
+                        <div class="thumb-placeholder">📷</div>
+                        {% endif %}
+                    </td>
+                    {% if es_admin %}
+                    <td style="color: var(--theme-text-hl); font-weight: 600;">{{ item.usuario }}</td>
+                    {% endif %}
+                    <td>
+                        {% if item.modelo_nombre %}
+                        <span style="font-weight: 600;">{{ item.modelo_nombre }}</span>
+                        <div style="color: var(--text-muted); font-size: 0.8rem;">{{ item.modelo_sub }}</div>
+                        {% else %}
+                        <span style="color: var(--text-muted); font-style: italic;">Modelo eliminado</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="tipo-badge {% if item.tipo == 'yolo' %}tipo-yolo{% else %}tipo-ml{% endif %}">{{ item.tipo_label }}</span>
+                    </td>
+                    <td><span class="resultado-badge">{{ item.resultado|truncatechars:30 }}</span></td>
+                    <td style="color: var(--text-muted);">
+                        {% if item.ubicacion %}📍 {{ item.ubicacion }}{% else %}—{% endif %}
+                    </td>
+                    <td style="color: var(--text-muted); white-space: nowrap;">{{ item.fecha|date:"d M Y, H:i" }}</td>
+                    <td>
+                        <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                            <a href="{{ item.url_ver }}" class="btn-detail">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                Ver
+                            </a>
+                            <form method="post" action="{{ item.url_eliminar }}" onsubmit="return confirm('¿Eliminar esta ejecución?');" style="display:inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-delete">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                                    Eliminar
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+
+        {# Footer: info + paginación #}
+        <div class="table-footer">
+            <div class="pagination-info">
+                Mostrando {{ page_obj.start_index }} – {{ page_obj.end_index }} de {{ total }} resultados
+            </div>
+            <div class="pagination-links">
+                {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}&per_page={{ per_page }}&categoria={{ categoria }}" class="page-link">← Anterior</a>
+                {% endif %}
+                {% for p in page_obj.paginator.page_range %}
+                <a href="?page={{ p }}&per_page={{ per_page }}&categoria={{ categoria }}" class="page-link {% if p == page_obj.number %}active{% endif %}">{{ p }}</a>
+                {% endfor %}
+                {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}&per_page={{ per_page }}&categoria={{ categoria }}" class="page-link">Siguiente →</a>
+                {% endif %}
+            </div>
+        </div>
+
+        {% else %}
+        <div class="empty-state">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <h3>No hay ejecuciones registradas aún</h3>
+            <p>Ejecuta un modelo en el catálogo para ver el historial aquí.</p>
+            <a href="{% url 'modelos_lista' %}" style="display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, var(--theme-grad-1), var(--theme-grad-2)); color: white; border-radius: 12px; text-decoration: none; font-weight: 600;">
+                Ver Modelos
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

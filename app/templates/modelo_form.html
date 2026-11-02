@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+{% comment %}
+============================================================
+modelo_form.html — Registro y Edición de Modelos
+============================================================
+Propósito: Formulario dinámico para subir nuevos modelos ML
+o actualizar los existentes en el catálogo.
+
+Configuración:
+- Campos obligatorios (Nombre, Archivo .onnx, Categoría).
+- Metadatos de inferencia (Preprocesamiento: RGB, Escala, Clases).
+- Soporte Multi-part (File uploads).
+
+Modos:
+- Registrar: Título "Agregar Nuevo Modelo".
+- Editar: Título "Editar Modelo", pre-pobla campos con datos de la BD.
+============================================================
+{% endcomment %}
+
+{% block title %}Agregar Modelo ML — AgroVision{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Contenedor principal del formulario, centrado con máx 780px */
+    .form-container {
+        max-width: 780px;
+        margin: 2.5rem auto;
+        padding: 0 1.5rem 3rem;
+    }
+
+    /* Encabezado del formulario: título con gradiente y subtítulo */
+    .form-header { margin-bottom: 2.5rem; }
+    .form-header h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.4rem; }
+    /* El <span> aplica gradiente al texto "Nuevo Modelo" */
+    .form-header h1 span {
+        background: linear-gradient(to right, var(--theme-grad-1), var(--theme-text-hl));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .form-header p { color: var(--text-muted); }
+
+    /* Tarjeta contenedora del formulario con efecto glassmorphism */
+    .glass-form {
+        background: rgba(255,255,255,0.04);
+        border: 1px solid var(--glass-border);
+        border-radius: 20px;
+        padding: 2.5rem;
+        backdrop-filter: blur(10px); /* Desenfoque del fondo para efecto cristal */
+    }
+
+    /* Títulos de sección dentro del formulario (separadores visuales) */
+    .form-section-title {
+        font-size: 0.85rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--theme-text-hl);
+        margin-bottom: 1.25rem;
+        margin-top: 2rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--glass-border); /* Línea separadora */
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .form-section-title:first-child { margin-top: 0; }
+
+    /* Grid de dos columnas para los campos del formulario */
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.25rem;
+    }
+    /* Clase para campos que deben ocupar todo el ancho del grid */
+    .form-full { grid-column: 1 / -1; }
+
+    /* Grupo de campo: label + input/select + helper text */
+    .field-group { display: flex; flex-direction: column; gap: 0.4rem; }
+    .field-group label { font-size: 0.9rem; font-weight: 600; color: #E2E8F0; }
+    .field-group small { color: var(--text-muted); font-size: 0.8rem; } /* Texto de ayuda */
+
+    /* Estilos compartidos para inputs, selects y textareas */
+    .form-input, .form-select, .form-textarea {
+        width: 100%;
+        padding: 0.8rem 1rem;
+        background: rgba(15, 23, 42, 0.5);  /* Fondo oscuro semi-transparente */
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 10px;
+        color: var(--text-main);
+        font-size: 0.95rem;
+        outline: none;
+        transition: border 0.2s;
+        font-family: 'Outfit', sans-serif;
+    }
+    /* Efecto de enfoque: borde coloreado con halo sutil */
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+    }
+    .form-textarea { resize: vertical; min-height: 100px; }
+    /* Fondo oscuro para las opciones del select en modo dark */
+    .form-select option { background: #1e293b; }
+
+    /* ── Área de carga de archivos (drag & drop) ───────────────── */
+    .file-upload-area {
+        border: 2px dashed rgba(255,255,255,0.15);
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+        position: relative; /* Necesario para posicionar el input invisible encima */
+    }
+    /* Efecto al pasar el cursor o arrastrar un archivo */
+    .file-upload-area:hover { border-color: var(--primary); background: rgba(16,185,129,0.05); }
+    /* El input file real se posiciona invisible encima de toda el área */
+    .file-upload-area input[type="file"] {
+        position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .file-upload-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .file-upload-area p { color: var(--text-muted); font-size: 0.9rem; margin: 0.3rem 0 0; }
+    .file-upload-area strong { color: var(--theme-text-hl); }
+
+    /* ── Sección de botones de acción al pie del formulario ── */
+    .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 1rem;
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--glass-border);
+        flex-wrap: wrap;
+    }
+    /* Botón "Cancelar" — estilo secundario/neutro */
+    .btn-cancelar {
+        padding: 0.8rem 1.5rem;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        color: var(--text-muted);
+        font-size: 0.95rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+    .btn-cancelar:hover { background: rgba(255,255,255,0.1); color: var(--text-main); }
+    /* Botón "Registrar Modelo" — estilo primario con gradiente */
+    .btn-crear {
+        padding: 0.8rem 2rem;
+        background: linear-gradient(135deg, var(--theme-grad-1), var(--theme-grad-2));
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .btn-crear:hover { transform: translateY(-2px); filter: brightness(1.1); }
+
+    /* Responsive: en pantallas pequeñas el grid pasa a una sola columna */
+    @media (max-width: 640px) {
+        .form-grid { grid-template-columns: 1fr; }
+        .glass-form { padding: 1.5rem; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    {# ── CABECERA DEL FORMULARIO ───────────────────────────────────────────── #}
+    <div class="form-header">
+        {% if modo_editar %}
+        <h1>Editar <span>Modelo</span></h1>
+        <p>Actualiza la información del modelo <strong>{{ modelo.nombre }}</strong>.</p>
+        {% else %}
+        <h1>Agregar <span>Nuevo Modelo</span></h1>
+        <p>Registra un modelo de Machine Learning en el catálogo AgroVision.</p>
+        {% endif %}
+    </div>
+
+    {# enctype="multipart/form-data" es OBLIGATORIO para poder enviar archivos binarios #}
+    <form method="POST" enctype="multipart/form-data" class="glass-form">
+        {% csrf_token %} {# Token de seguridad CSRF de Django #}
+
+        {# ── SECCIÓN 1: Información General del Modelo ─────────────────────── #}
+        <div class="form-section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Información del Modelo
+        </div>
+
+        <div class="form-grid">
+            {# Nombre del modelo — campo de texto libre obligatorio #}
+            <div class="field-group">
+                <label for="nombre">Nombre del Modelo *</label>
+                <input type="text" id="nombre" name="nombre" class="form-input"
+                       placeholder="ej: Detector de Roya en Café" required
+                       value="{% if modo_editar %}{{ modelo.nombre }}{% endif %}">
+            </div>
+            {# Nombre del estudio académico asociado al modelo #}
+            <div class="field-group">
+                <label for="nombre_estudio">Nombre del Estudio *</label>
+                <input type="text" id="nombre_estudio" name="nombre_estudio" class="form-input"
+                       placeholder="ej: Estudio de Enfermedades Fúngicas 2025" required
+                       value="{% if modo_editar %}{{ modelo.nombre_estudio }}{% endif %}">
+            </div>
+            {% comment %} Categoría dinámica — loaded from BD; shows text input if 'Otro' is selected {% endcomment %}
+            <div class="field-group" x-data="{ cat: '{% if modo_editar %}{{ modelo.categoria }}{% endif %}' }">
+                <label for="categoria">Categoría (Cultivo) *</label>
+                <select id="categoria" name="categoria" class="form-select" required
+                        x-model="cat">
+                    <option value="" disabled :selected="cat === ''">Selecciona una categoría...</option>
+                    {% for cat_obj in categorias %}
+                    <option value="{{ cat_obj.nombre }}"
+                        {% if modo_editar and modelo.categoria == cat_obj.nombre %}selected{% endif %}>
+                        {{ cat_obj.nombre|capfirst }}
+                    </option>
+                    {% endfor %}
+                    <option value="otro">➕ Otro (agregar nueva)</option>
+                </select>
+                {% comment %} Campo de texto que aparece solo cuando se selecciona 'otro' {% endcomment %}
+                <div x-show="cat === 'otro'" x-transition style="display:none; margin-top: 0.5rem;">
+                    <input type="text" name="categoria_nueva" class="form-input"
+                           placeholder="Escribe el nombre de la nueva categoría (ej: palma)"
+                           :required="cat === 'otro'">
+                    <small style="color: var(--theme-text-hl);">Esta categoría se agregará al catálogo automáticamente 🌱</small>
+                </div>
+            </div>
+            {# Estado del modelo — activo (puede ejecutarse), inactivo, en entrenamiento #}
+            <div class="field-group">
+                <label for="estado">Estado *</label>
+                <select id="estado" name="estado" class="form-select" required>
+                    {% for key, label in estados %}
+                    <option value="{{ key }}"
+                        {% if modo_editar and modelo.estado == key %}selected
+                        {% elif not modo_editar and key == 'activo' %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {# Descripción del modelo — textarea que ocupa todo el ancho del grid #}
+            <div class="field-group form-full">
+                <label for="descripcion">Descripción *</label>
+                <textarea id="descripcion" name="descripcion" class="form-textarea" placeholder="Describe brevemente el modelo: qué detecta, cómo fue entrenado, sus características principales..." required>{% if modo_editar %}{{ modelo.descripcion }}{% endif %}</textarea>
+            </div>
+            {# Precisión del modelo — campo opcional con paso decimal de 0.01 #}
+            <div class="field-group">
+                <label for="precision">Precisión del Modelo (%)</label>
+                <input type="number" id="precision" name="precision" class="form-input" placeholder="ej: 95.87" min="0" max="100" step="0.01" value="{% if modo_editar and modelo.precision %}{{ modelo.precision }}{% endif %}">
+                <small>Opcional — Ingresa la métrica de precisión (accuracy) en porcentaje</small>
+            </div>
+
+        </div>
+
+        {# ── SECCIÓN 2: Archivos del Modelo y del Estudio ──────────────────── #}
+        <div class="form-section-title" style="margin-top: 2rem;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Archivos
+        </div>
+
+        <div class="form-grid">
+            {# Campo de carga del archivo de modelo ONNX o PKL #}
+            <div class="field-group">
+                <label>Archivo del Modelo (.onnx, .pkl) {% if not modo_editar %}*{% endif %}</label>
+                <div class="file-upload-area" id="area-modelo">
+                    {# Si es modo edición, el archivo no es requerido (ya hay uno) #}
+                    <input type="file" name="archivo_modelo" id="archivo_modelo" accept=".onnx,.pkl" {% if not modo_editar %}required{% endif %} onchange="actualizarNombre(this, 'nombre-modelo')">
+                    <div class="file-upload-icon">🧠</div>
+                    <p><strong>Haz clic o arrastra</strong> el archivo aquí</p>
+                    <p id="nombre-modelo" style="color: var(--theme-text-hl); margin-top: 0.5rem;">
+                        {% if modo_editar and modelo.archivo_modelo %}
+                            ✓ {{ modelo.archivo_modelo.name|slice:"15:" }} (Actual)
+                        {% endif %}
+                    </p>
+                    <p>Formatos permitidos: .onnx, .pkl</p>
+                </div>
+            </div>
+            {# Campo de carga del documento de estudio PDF/DOC (opcional) #}
+            <div class="field-group">
+                <label>Documento del Estudio (PDF)</label>
+                <div class="file-upload-area" id="area-pdf">
+                    <input type="file" name="documento_estudio" id="documento_estudio" accept=".pdf,.doc,.docx" onchange="actualizarNombre(this, 'nombre-pdf')">
+                    <div class="file-upload-icon">📄</div>
+                    <p><strong>Haz clic o arrastra</strong> el documento aquí</p>
+                    <p id="nombre-pdf" style="color: var(--theme-text-hl); margin-top: 0.5rem;">
+                        {% if modo_editar and modelo.documento_estudio %}
+                            ✓ {{ modelo.documento_estudio.name|slice:"18:" }} (Actual)
+                        {% endif %}
+                    </p>
+                    <p>Opcional — PDF, DOC, DOCX</p>
+                </div>
+            </div>
+        </div>
+
+        {% comment %}
+        ── SECCIÓN 3: Configuración de Inferencia (Opcional/Avanzado) ──────────
+        Estos campos le indican al motor de inferencia (views.py) cómo
+        preprocesar la imagen antes de enviársela al modelo ONNX.
+        {% endcomment %}
+        <div class="form-section-title" style="margin-top: 2rem;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Configuración de Inferencia (Opcional)
+        </div>
+
+        <div class="form-grid">
+            {# Dimensión de ancho que espera la red neuronal #}
+            <div class="field-group">
+                <label for="img_width">Ancho Esperado (px)</label>
+                <input type="number" id="img_width" name="img_width" class="form-input" value="{% if modo_editar %}{{ modelo.img_width }}{% else %}28{% endif %}" min="1">
+                <small>Ancho de la imagen que espera la red neuronal.</small>
+            </div>
+            {# Dimensión de alto que espera la red neuronal #}
+            <div class="field-group">
+                <label for="img_height">Alto Esperado (px)</label>
+                <input type="number" id="img_height" name="img_height" class="form-input" value="{% if modo_editar %}{{ modelo.img_height }}{% else %}28{% endif %}" min="1">
+                <small>Alto de la imagen que espera la red neuronal.</small>
+            </div>
+
+            {% comment %} Checkbox: ¿el modelo espera imágenes en color (RGB) o escala de grises? {% endcomment %}
+            <div class="field-group" style="justify-content: center;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" id="es_rgb" name="es_rgb" style="width: 1.2rem; height: 1.2rem; accent-color: var(--primary);"
+                           {% if modo_editar and modelo.es_rgb %}checked{% elif not modo_editar %}checked{% endif %}>
+                    Es RGB (A color)
+                </label>
+                <small>Desactívalo si es en Blanco y Negro (Grayscale).</small>
+            </div>
+
+            {% comment %} Checkbox: ¿invertir colores? {% endcomment %}
+            <div class="field-group" style="justify-content: center;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" id="invertir_colores" name="invertir_colores" style="width: 1.2rem; height: 1.2rem; accent-color: var(--primary);"
+                           {% if modo_editar and modelo.invertir_colores %}checked{% endif %}>
+                    Invertir Colores
+                </label>
+                <small>Útil para dígitos manuscritos (MNIST).</small>
+            </div>
+
+            {% comment %} Nombres de clases (manzana, pera...) para traducir el índice (0, 1) a texto. {% endcomment %}
+            <div class="field-group form-full">
+                <label for="nombres_clases">Nombres de Clases (Resultados Legibles)</label>
+                <input type="text" id="nombres_clases" name="nombres_clases" class="form-input" placeholder="ej: Fresa Sana, Fresa Quemada, Fresa Podrida" value="{% if modo_editar %}{{ modelo.nombres_clases }}{% endif %}">
+                <small>Nombres separados por comas (,). Esto traducirá el 0, 1, 2 que devuelve la IA a texto humano.</small>
+            </div>
+        </div>
+
+
+        {# ── BOTONES DE ACCIÓN DEL FORMULARIO ─────────────────────────────────── #}
+        <div class="form-actions">
+            {# Cancelar: vuelve al catálogo sin guardar nada #}
+            <a href="{% url 'modelos_lista' %}" class="btn-cancelar">Cancelar</a>
+            {# Submit: envía el formulario como POST a la misma URL (modelo_crear) #}
+            <button type="submit" class="btn-crear">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                {% if modo_editar %}Guardar Cambios{% else %}Registrar Modelo{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+
+{# ── SCRIPT DE ACTUALIZACIÓN DE NOMBRE DE ARCHIVO ─────────────────────────── #}
+<script>
+/**
+ * Actualiza el texto visible de un área de carga de archivo
+ * cuando el usuario selecciona un fichero desde el explorador.
+ *
+ * @param {HTMLInputElement} input  - El <input type="file"> que cambió
+ * @param {string}           spanId - ID del <p> donde mostrar el nombre del archivo
+ */
+function actualizarNombre(input, spanId) {
+    // Optional chaining (?.) para no fallar si files[0] es undefined
+    const fileName = input.files[0]?.name;
+    // Mostrar el nombre con un checkmark (✓) o vaciar si se canceló la selección
+    document.getElementById(spanId).textContent = fileName ? `✓ ${fileName}` : '';
+}
+</script>
+{% endblock %}

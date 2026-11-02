@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% comment %}
+============================================================
+yolo_ejecutar.html — Detección de Objetos con YOLO
+============================================================
+Propósito: Subir una imagen, ejecutar el modelo YOLO y mostrar
+la imagen resultante con las cajas delimitadoras dibujadas,
+junto con la lista de objetos detectados y su confianza.
+
+Contexto:
+- modelo:    Instancia de ModeloYOLO.
+- resultado: Dict {imagen_url, detecciones[], total, candidatos}.
+- error:     Mensaje de error en caso de fallo.
+- historial: Últimas detecciones del usuario con este modelo.
+============================================================
+{% endcomment %}
+
+{% block title %}Detectar con: {{ modelo.nombre }} — AgroVision{% endblock %}
+
+{% block extra_css %}
+<style>
+    .deteccion-container { max-width: 1200px; margin: 2.5rem auto; padding: 0 1.5rem 3rem; }
+
+    .breadcrumb { display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem; }
+    .breadcrumb a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+    .breadcrumb a:hover { color: var(--theme-text-hl); }
+
+    .header-deteccion { text-align: center; margin-bottom: 2.5rem; }
+    .header-deteccion h1 { font-size: 2.2rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .header-deteccion h1 span { background: linear-gradient(to right, var(--theme-grad-1), var(--theme-text-hl)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .header-deteccion p { color: var(--text-muted); }
+
+    .grid-deteccion { display: grid; grid-template-columns: 5fr 7fr; gap: 2rem; }
+    @media (max-width: 900px) { .grid-deteccion { grid-template-columns: 1fr; } }
+
+    .glass-card { background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border); border-radius: 18px; padding: 2rem; position: relative; overflow: hidden; }
+    .card-content { position: relative; z-index: 1; }
+    .card-title { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; color: var(--theme-text-hl); margin-bottom: 1.5rem; }
+
+    /* ── Zona de carga (drag & drop) ── */
+    .upload-zone { border: 2px dashed rgba(255,255,255,0.2); border-radius: 14px; padding: 3rem 1rem; text-align: center; cursor: pointer; transition: all 0.3s; background: rgba(0,0,0,0.2); position: relative; }
+    .upload-zone:hover, .upload-zone.dragover { border-color: var(--primary); background: rgba(16,185,129,0.05); }
+    .upload-icon { color: var(--primary); margin-bottom: 1rem; opacity: 0.8; }
+    .upload-zone p { margin: 0; color: var(--text-muted); font-size: 0.95rem; }
+    .upload-zone strong { color: var(--text-main); }
+    #file-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+
+    #preview-container { margin-top: 1.5rem; display: none; text-align: center; }
+    #preview-container img { max-width: 100%; max-height: 240px; border-radius: 10px; border: 1px solid var(--glass-border); }
+
+    .btn-submit { width: 100%; padding: 1rem; background: linear-gradient(135deg, var(--theme-grad-1), var(--theme-grad-2)); color: white; border: none; border-radius: 12px; font-size: 1.05rem; font-weight: 700; cursor: pointer; transition: all 0.3s; margin-top: 1.5rem; display: none; align-items: center; justify-content: center; font-family: 'Outfit', sans-serif; }
+    .btn-submit:hover { filter: brightness(1.1); transform: translateY(-2px); }
+    .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .loader { display: none; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; margin-right: 0.6rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Parámetros del modelo ── */
+    .params-modelo { margin-top: 1.75rem; padding-top: 1.5rem; border-top: 1px solid var(--glass-border); }
+    .param-row { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 0.4rem 0; color: var(--text-muted); }
+    .param-row strong { color: var(--text-main); font-weight: 600; }
+
+    /* ── Resultado: imagen con cajas ── */
+    .imagen-resultado { width: 100%; border-radius: 12px; border: 1px solid var(--glass-border); display: block; }
+
+    .resumen-deteccion { display: flex; gap: 1rem; margin: 1.5rem 0; flex-wrap: wrap; }
+    .stat-box { flex: 1; min-width: 130px; background: rgba(0,0,0,0.25); border: 1px solid var(--glass-border); border-radius: 12px; padding: 1rem; text-align: center; }
+    .stat-numero { font-size: 1.8rem; font-weight: 800; background: linear-gradient(135deg, #10B981, #34D399); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-label { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 0.2rem; }
+
+    /* ── Lista de objetos detectados ── */
+    .lista-detecciones { display: flex; flex-direction: column; gap: 0.8rem; }
+    .deteccion-item { background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); border-radius: 12px; padding: 0.9rem 1.1rem; }
+    .deteccion-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .deteccion-clase { font-weight: 700; font-size: 0.98rem; text-transform: capitalize; }
+    .deteccion-pct { font-size: 0.9rem; font-weight: 700; color: #34D399; }
+    .barra-fondo { background: rgba(255,255,255,0.08); border-radius: 999px; height: 6px; overflow: hidden; }
+    .barra-nivel { background: linear-gradient(90deg, var(--theme-grad-1), var(--theme-grad-2)); height: 100%; border-radius: 999px; }
+
+    .resultado-vacio { color: var(--text-muted); opacity: 0.6; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 320px; text-align: center; }
+
+    /* ── Historial ── */
+    .historial-seccion { margin-top: 2.5rem; }
+    .historial-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; }
+    .historial-item { background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: 12px; overflow: hidden; }
+    .historial-item img { width: 100%; height: 120px; object-fit: cover; display: block; }
+    .historial-info { padding: 0.7rem 0.9rem; font-size: 0.78rem; color: var(--text-muted); }
+    .historial-info strong { display: block; color: var(--text-main); font-size: 0.85rem; margin-bottom: 0.2rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="deteccion-container">
+
+    {# ── Breadcrumb ─────────────────────────────────────────────────────────── #}
+    <div class="breadcrumb" style="justify-content: space-between;">
+        <div>
+            <a href="{% url 'dashboard' %}">Dashboard</a> <span>/</span>
+            <a href="{% url 'yolo_lista' %}">Detección YOLO</a> <span>/</span>
+            <a href="{% url 'yolo_camara' modelo.pk %}" class="btn-pri">Detección en vivo</a>
+            <span>{{ modelo.nombre }}</span>
+    
+        </div>
+        <a href="{% url 'yolo_camara' modelo.pk %}" style="display:inline-flex; align-items:center; gap:0.5rem; padding:0.7rem 1.4rem; background:rgba(16,185,129,0.15); border:1px solid var(--primary); color:var(--primary); border-radius:12px; font-size:0.92rem; font-weight:600; text-decoration:none;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                Detección en vivo
+            </a>
+        <a href="{% url 'yolo_lista' %}" style="display:inline-flex; align-items:center; gap:0.5rem; padding:0.7rem 1.4rem; background:linear-gradient(135deg, var(--theme-grad-1), var(--theme-grad-2)); color:white; border-radius:12px; font-size:0.92rem; font-weight:600; text-decoration:none;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Volver al catálogo
+        </a>
+    </div>
+
+    {# ── Título ─────────────────────────────────────────────────────────────── #}
+    <div class="header-deteccion">
+        <h1>Detección de Objetos: <span>{{ modelo.nombre }}</span></h1>
+        <p>Sube una imagen y el modelo identificará los objetos, dibujando cajas delimitadoras con su clase y confianza.</p>
+    </div>
+
+    {# ── Alerta de error ────────────────────────────────────────────────────── #}
+    {% if error %}
+    <div style="background: rgba(239,68,68,0.1); border-left: 4px solid #F87171; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; color: #FCA5A5;">
+        <strong>Error:</strong> {{ error }}
+    </div>
+    {% endif %}
+
+    <div class="grid-deteccion">
+
+        {# ── COLUMNA IZQUIERDA: carga de imagen ─────────────────────────────── #}
+        <div class="glass-card">
+            <div class="card-content">
+                <h2 class="card-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    Imagen de Entrada
+                </h2>
+
+                <form method="POST" enctype="multipart/form-data" id="deteccion-form">
+                    {% csrf_token %}
+
+                    <div class="upload-zone" id="drop-zone">
+                        <svg class="upload-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <p><strong>Haz clic</strong> o arrastra una imagen aquí</p>
+                        <p style="font-size: 0.8rem; margin-top: 0.5rem; opacity: 0.7;">Formatos: JPG, PNG, WEBP</p>
+                        <input type="file" name="imagen" id="file-input" accept="image/png, image/jpeg, image/webp" required>
+                    </div>
+
+                    <div id="preview-container">
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Previsualización:</p>
+                        <img id="image-preview" src="#" alt="Vista previa">
+                    </div>
+
+                    <button type="submit" class="btn-submit" id="btn-detectar">
+                        <div class="loader" id="loader"></div>
+                        <span>Detectar Objetos</span>
+                    </button>
+                </form>
+
+                {# ── Parámetros configurados del modelo ─────────────────────── #}
+                <div class="params-modelo">
+                    <div class="param-row"><span>Tamaño de entrada</span><strong>{{ modelo.tamano_entrada }}×{{ modelo.tamano_entrada }} px</strong></div>
+                    <div class="param-row"><span>Umbral de confianza</span><strong>{{ modelo.umbral_confianza }}</strong></div>
+                    <div class="param-row"><span>Umbral IoU (NMS)</span><strong>{{ modelo.umbral_iou }}</strong></div>
+                </div>
+            </div>
+        </div>
+
+        {# ── COLUMNA DERECHA: resultado ─────────────────────────────────────── #}
+        <div class="glass-card">
+            <div class="card-content">
+                <h2 class="card-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg>
+                    Objetos Detectados
+                </h2>
+
+                {% if resultado %}
+                    {# Imagen con las cajas delimitadoras dibujadas #}
+                    <img src="{{ resultado.imagen_url }}" alt="Detecciones" class="imagen-resultado">
+
+                    {# Resumen numérico del proceso de decodificación #}
+                    <div class="resumen-deteccion">
+                        <div class="stat-box">
+                            <div class="stat-numero">{{ resultado.total }}</div>
+                            <div class="stat-label">Objetos finales</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-numero">{{ resultado.candidatos }}</div>
+                            <div class="stat-label">Candidatos filtrados</div>
+                        </div>
+                    </div>
+
+                    {# Lista de cada objeto detectado con su confianza #}
+                    {% if resultado.detecciones %}
+                    <div class="lista-detecciones">
+                        {% for d in resultado.detecciones %}
+                        <div class="deteccion-item">
+                            <div class="deteccion-top">
+                                <span class="deteccion-clase">{{ d.clase }}</span>
+                                <span class="deteccion-pct">{{ d.confianza }}%</span>
+                            </div>
+                            <div class="barra-fondo">
+                                <div class="barra-nivel" data-pct="{{ d.confianza }}"></div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p style="color: var(--text-muted); text-align:center; padding: 1rem;">
+                        El modelo no encontró objetos por encima del umbral de confianza configurado.
+                    </p>
+                    {% endif %}
+                {% else %}
+                    {# Estado vacío #}
+                    <div class="resultado-vacio">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 1rem;"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg>
+                        <p>Aún no hay detecciones.<br>Sube una imagen y presiona «Detectar Objetos».</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# ── Historial de detecciones recientes ─────────────────────────────────── #}
+    {% if historial %}
+    <div class="historial-seccion">
+        <h2 class="card-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Tus detecciones recientes con este modelo
+        </h2>
+        <div class="historial-grid">
+            {% for h in historial %}
+            <div class="historial-item">
+                {% if h.imagen_resultado %}
+                <img src="{{ h.imagen_resultado.url }}" alt="Detección previa">
+                {% endif %}
+                <div class="historial-info">
+                    <strong>{{ h.total_detecciones }} objeto{{ h.total_detecciones|pluralize }}</strong>
+                    {{ h.fecha_ejecucion|date:"d M Y, H:i" }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    /**
+     * Interacción de la zona de carga de imagen:
+     *  1. Drag & drop visual.
+     *  2. Previsualización con FileReader.
+     *  3. Mostrar el botón de detección al seleccionar imagen.
+     *  4. Spinner y bloqueo del botón al enviar (evita doble envío).
+     */
+    document.addEventListener('DOMContentLoaded', function() {
+        const fileInput = document.getElementById('file-input');
+        const dropZone = document.getElementById('drop-zone');
+        const previewContainer = document.getElementById('preview-container');
+        const imagePreview = document.getElementById('image-preview');
+        const btnSubmit = document.getElementById('btn-detectar');
+        const form = document.getElementById('deteccion-form');
+        const loader = document.getElementById('loader');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+        function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                handleFiles(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', function() {
+            if (this.files && this.files[0]) handleFiles(this.files[0]);
+        });
+
+        function handleFiles(file) {
+            if (!file.type.match('image.*')) {
+                alert('Por favor, selecciona solo imágenes (JPG, PNG, WEBP).');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imagePreview.src = e.target.result;
+                previewContainer.style.display = 'block';
+                btnSubmit.style.display = 'flex';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        form.addEventListener('submit', function() {
+            btnSubmit.disabled = true;
+            loader.style.display = 'block';
+            btnSubmit.querySelector('span').textContent = 'Procesando...';
+        });
+    });
+</script>
+{% endblock %}

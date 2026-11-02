@@ -1,0 +1,387 @@
+{% extends "base.html" %}
+
+{% block title %}Estadísticas — AgroVision{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Estilos Bento Grid y Glassmorphism Orgánico */
+    .stats-container { max-width: 1200px; margin: 2rem auto; padding: 0 1.5rem 3rem; }
+    
+    .stats-header { text-align: center; margin-bottom: 3rem; }
+    .stats-header h1 { font-size: 2.5rem; font-weight: 800; background: linear-gradient(135deg, var(--theme-grad-1), var(--theme-text-hl)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem; }
+    .stats-header p { color: var(--text-muted); font-size: 1.1rem; }
+
+    .bento-grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 1.5rem;
+        grid-auto-rows: minmax(180px, auto);
+    }
+
+    .bento-item {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--glass-border);
+        border-radius: 24px;
+        padding: 1.5rem;
+        backdrop-filter: blur(12px);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        animation: fadeUp 0.6s ease-out forwards;
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    
+    .bento-item:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+        border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    /* Asignación de espacios en el grid */
+    .bento-totales { grid-column: span 6; }
+    .bento-chart-donught { grid-column: span 6; grid-row: span 2; display: flex; align-items: center; justify-content: center; }
+    .bento-porcentajes { grid-column: span 6; grid-row: span 1; }
+    .bento-chart-bar { grid-column: span 12; grid-row: span 2; }
+    .bento-yolo { grid-column: span 12; }
+
+    /* Módulo YOLO: cuatro contadores en una fila */
+    .yolo-flex { display: flex; justify-content: space-around; width: 100%; text-align: center; flex-wrap: wrap; gap: 1.5rem; }
+    .yolo-flex .stat-value { font-size: 2.6rem; }
+    .yolo-flex .stat-label { font-size: 0.82rem; }
+
+    @media (max-width: 992px) {
+        .bento-totales, .bento-chart-donught, .bento-porcentajes, .bento-chart-bar, .bento-yolo { grid-column: span 12; }
+    }
+
+    /* Estilos internos de las tarjetas */
+    .stat-value { font-size: 3.5rem; font-weight: 800; color: var(--text-main); line-height: 1; }
+    .stat-label { font-size: 1rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.5rem; }
+
+    .totales-flex { display: flex; justify-content: space-around; width: 100%; text-align: center; }
+    
+    .pct-list { list-style: none; padding: 0; margin: 0; width: 100%; }
+    .pct-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .pct-item:last-child { border-bottom: none; }
+    .pct-name { font-weight: 600; color: var(--text-main); }
+    .pct-bar-container { flex: 1; margin: 0 1rem; background: rgba(255,255,255,0.1); border-radius: 999px; height: 8px; overflow: hidden; }
+    .pct-bar { height: 100%; background: linear-gradient(90deg, #10B981, #34D399); border-radius: 999px; }
+    .pct-val { font-weight: 700; color: var(--theme-text-hl); min-width: 50px; text-align: right; }
+
+    .card-title { font-size: 1.2rem; font-weight: 700; color: var(--text-main); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+
+    /* Animaciones */
+    @keyframes fadeUp {
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Pestañas de categoría ── */
+    .cat-tabs { display: flex; justify-content: center; gap: 0.6rem; margin: -1.5rem 0 2.5rem; flex-wrap: wrap; }
+    .cat-tab { padding: 0.6rem 1.4rem; border-radius: 999px; font-size: 0.92rem; font-weight: 600;
+        text-decoration: none; color: var(--text-muted); border: 1px solid var(--glass-border);
+        background: rgba(255,255,255,0.03); transition: all 0.2s; }
+    .cat-tab:hover { color: var(--text-main); border-color: var(--theme-text-hl); }
+    .cat-tab.activa { background: linear-gradient(135deg, var(--theme-grad-1), var(--theme-grad-2));
+        color: #fff; border-color: transparent; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="stats-container">
+    <div class="stats-header">
+        <h1>Métricas de Impacto</h1>
+        <p>Visión global del rendimiento y resultados de los modelos agrícolas.</p>
+    </div>
+
+    {# ── Filtro por categoría ──────────────────────────────────────────── #}
+    <div class="cat-tabs">
+        <a href="?categoria=todas" class="cat-tab {% if categoria_vista == 'todas' %}activa{% endif %}">Todas</a>
+        <a href="?categoria=ml" class="cat-tab {% if categoria_vista == 'ml' %}activa{% endif %}">Modelos ML</a>
+        <a href="?categoria=yolo" class="cat-tab {% if categoria_vista == 'yolo' %}activa{% endif %}">Detección YOLO</a>
+    </div>
+
+    <div class="bento-grid">
+        
+        {% if categoria_vista != 'yolo' %}
+        <!-- Tarjeta de Totales -->
+        <div class="bento-item bento-totales" style="animation-delay: 0.1s;">
+            <div class="totales-flex">
+                <div>
+                    <div class="stat-value">{{ total_ejecuciones }}</div>
+                    <div class="stat-label">Ejecuciones Totales</div>
+                </div>
+                <div>
+                    <div class="stat-value" style="color: var(--theme-text-hl);">{{ total_modelos }}</div>
+                    <div class="stat-label">Modelos Registrados</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if categoria_vista != 'ml' %}
+        <!-- Módulo de Detección de Objetos (YOLO) -->
+        <div class="bento-item bento-yolo" style="animation-delay: 0.15s;">
+            <div class="card-title">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="3"/></svg>
+                Módulo de Detección de Objetos (YOLO)
+            </div>
+            <div class="yolo-flex">
+                <div>
+                    <div class="stat-value" style="color: var(--theme-text-hl);">{{ total_modelos_yolo }}</div>
+                    <div class="stat-label">Modelos YOLO</div>
+                </div>
+                <div>
+                    <div class="stat-value">{{ total_detecciones }}</div>
+                    <div class="stat-label">Detecciones</div>
+                </div>
+                <div>
+                    <div class="stat-value">{{ objetos_detectados }}</div>
+                    <div class="stat-label">Objetos Detectados</div>
+                </div>
+                <div>
+                    <div class="stat-value">{{ detecciones_imagen }}</div>
+                    <div class="stat-label">Desde Imagen</div>
+                </div>
+                <div>
+                    <div class="stat-value">{{ detecciones_camara }}</div>
+                    <div class="stat-label">Desde Cámara</div>
+                </div>
+                <div>
+                    <div class="stat-value">{{ promedio_objetos }}</div>
+                    <div class="stat-label">Objetos por Detección</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- YOLO: origen de las detecciones -->
+        <div class="bento-item bento-chart-donught" style="animation-delay: 0.2s;">
+            <div style="width: 100%; height: 100%; display:flex; flex-direction: column; align-items:center;">
+                <div class="card-title">Origen de las Detecciones</div>
+                <div style="position: relative; height: 250px; width: 100%; display: flex; justify-content: center;">
+                    <canvas id="origenChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- YOLO: detecciones por modelo -->
+        <div class="bento-item bento-porcentajes" style="animation-delay: 0.25s; justify-content: flex-start;">
+            <div class="card-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="3"/></svg>
+                Detecciones por Modelo YOLO
+            </div>
+            <div style="position: relative; height: 230px; width: 100%;">
+                <canvas id="yoloModelosChart"></canvas>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if categoria_vista != 'yolo' %}
+        <!-- Gráfico de Dona: Distribución de Modelos -->
+        <div class="bento-item bento-chart-donught" style="animation-delay: 0.2s;">
+            <div style="width: 100%; height: 100%; display:flex; flex-direction: column; align-items:center;">
+                <div class="card-title">Distribución de Modelos por Categoría</div>
+                <div style="position: relative; height: 250px; width: 100%; display: flex; justify-content: center;">
+                    <canvas id="modelosChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lista de Porcentajes de Resultados (Ejecuciones por categoría) -->
+        <div class="bento-item bento-porcentajes" style="animation-delay: 0.3s; justify-content: flex-start;">
+            <div class="card-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                Porcentaje de Resultados (Uso)
+            </div>
+            <ul class="pct-list">
+                {% for item in ejecuciones_porcentajes %}
+                <li class="pct-item">
+                    <span class="pct-name">{{ item.nombre }}</span>
+                    <div class="pct-bar-container">
+                        <div class="pct-bar" data-name="{{ item.nombre }}" style="width: {{ item.porcentaje|stringformat:'f' }}%;"></div>
+                    </div>
+                    <span class="pct-val">{{ item.porcentaje|stringformat:'.1f' }}%</span>
+                </li>
+                {% empty %}
+                <li style="color: var(--text-muted); text-align: center; padding: 1rem 0;">Aún no hay ejecuciones registradas.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Gráfico de Barras: Ejecuciones -->
+        <div class="bento-item bento-chart-bar" style="animation-delay: 0.4s;">
+            <div class="card-title">Volumen de Análisis por Categoría</div>
+            <div style="position: relative; height: 300px; width: 100%;">
+                <canvas id="ejecucionesChart"></canvas>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Configuración global de Chart.js para tema oscuro
+        Chart.defaults.color = '#94A3B8';
+        Chart.defaults.font.family = "'Outfit', sans-serif";
+        
+        // Datos inyectados desde Django
+        const modelosLabels = {{ categorias_nombres_json|safe }};
+        const modelosData = {{ categorias_datos_json|safe }};
+        
+        const ejecLabels = {{ ejec_nombres_json|safe }};
+        const ejecData = {{ ejec_datos_json|safe }};
+
+        // Función para generar un color único basado en el nombre de la categoría
+        // Esto asegura que cada cultivo/categoría nueva tenga siempre un color asignado
+        // y que el color sea consistente en todos los gráficos.
+        function stringToColor(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            // Mapear el hash a un tono (hue) de 0 a 360 grados
+            const hue = Math.abs(hash % 360);
+            // Saturación alta (80%) y luminosidad media (55%) ideal para fondos oscuros
+            return `hsla(${hue}, 80%, 55%, 0.8)`;
+        }
+
+        const modelosColors = modelosLabels.map(label => stringToColor(label));
+        const ejecColors = ejecLabels.map(label => stringToColor(label));
+
+        // Aplicar el mismo color a las barras de progreso HTML
+        document.querySelectorAll('.pct-bar').forEach(bar => {
+            const name = bar.getAttribute('data-name');
+            if (name) {
+                bar.style.background = stringToColor(name);
+            }
+        });
+
+        // 1. Gráfico de Dona (Modelos por Categoría)
+        const ctxDoughnut = document.getElementById('modelosChart');
+        if (ctxDoughnut) {
+            new Chart(ctxDoughnut, {
+                type: 'doughnut',
+                data: {
+                    labels: modelosLabels,
+                    datasets: [{
+                        data: modelosData,
+                        backgroundColor: modelosColors,
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { color: '#F8FAFC' } }
+                    },
+                    cutout: '70%'
+                }
+            });
+        }
+
+        // 2. Gráfico de Barras (Ejecuciones por Categoría)
+        const ctxBar = document.getElementById('ejecucionesChart');
+        if (ctxBar) {
+            new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: ejecLabels,
+                    datasets: [{
+                        label: 'Número de Ejecuciones',
+                        data: ejecData,
+                        backgroundColor: ejecColors,
+                        borderRadius: 8,
+                        barPercentage: 0.6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { precision: 0 }
+                        },
+                        x: {
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ── 3. Gráficos del módulo YOLO ─────────────────────────────────
+        const yoloModelosLabels = {{ yolo_modelos_nombres_json|safe }};
+        const yoloModelosData = {{ yolo_modelos_datos_json|safe }};
+        const origenData = {{ origen_datos_json|safe }};
+
+        // 3.1 Origen de las detecciones: imagen cargada vs cámara en vivo
+        const ctxOrigen = document.getElementById('origenChart');
+        if (ctxOrigen && (origenData[0] + origenData[1]) > 0) {
+            new Chart(ctxOrigen, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Imagen cargada', 'Cámara en vivo'],
+                    datasets: [{
+                        data: origenData,
+                        backgroundColor: ['#3B82F6', '#10B981'],
+                        borderWidth: 0,
+                        hoverOffset: 10
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '65%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { padding: 15, usePointStyle: true } }
+                    }
+                }
+            });
+        }
+
+        // 3.2 Cuántas detecciones lleva cada modelo YOLO
+        const ctxYoloModelos = document.getElementById('yoloModelosChart');
+        if (ctxYoloModelos && yoloModelosData.length > 0) {
+            new Chart(ctxYoloModelos, {
+                type: 'bar',
+                data: {
+                    labels: yoloModelosLabels,
+                    datasets: [{
+                        label: 'Detecciones',
+                        data: yoloModelosData,
+                        backgroundColor: yoloModelosLabels.map(function (n) { return stringToColor(n); }),
+                        borderRadius: 8,
+                        barPercentage: 0.6
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { precision: 0 }
+                        },
+                        y: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

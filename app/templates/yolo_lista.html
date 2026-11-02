@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% comment %}
+============================================================
+yolo_lista.html — Catálogo de Modelos YOLO
+============================================================
+Propósito: Listar los modelos YOLO registrados y dar acceso
+a la pantalla de detección de objetos.
+
+Contexto:
+- modelos:  QuerySet de ModeloYOLO.
+- query:    Texto de búsqueda actual.
+- es_admin: Booleano para mostrar acciones administrativas.
+============================================================
+{% endcomment %}
+
+{% block title %}Detección YOLO — AgroVision{% endblock %}
+
+{% block extra_css %}
+<style>
+    .yolo-container { max-width: 1200px; margin: 2.5rem auto; padding: 0 1.5rem 3rem; }
+
+    /* ── Encabezado de la página ── */
+    .yolo-header { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1.5rem; margin-bottom: 2rem; }
+    .yolo-header h1 { font-size: 2.4rem; font-weight: 800; margin: 0 0 0.5rem; }
+    .yolo-header h1 span { background: linear-gradient(to right, var(--theme-grad-1), var(--theme-text-hl)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .yolo-header p { color: var(--text-muted); margin: 0; }
+
+    .btn-nuevo { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.9rem 1.6rem; background: linear-gradient(135deg, var(--theme-grad-1), var(--theme-grad-2)); color: white; border-radius: 12px; font-weight: 700; text-decoration: none; transition: all 0.3s; }
+    .btn-nuevo:hover { filter: brightness(1.1); transform: translateY(-2px); }
+
+    /* ── Buscador ── */
+    .buscador { margin-bottom: 2rem; }
+    .buscador input { width: 100%; padding: 1rem 1.25rem; background: rgba(15,23,42,0.5); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; color: #F8FAFC; font-size: 0.95rem; font-family: 'Outfit', sans-serif; outline: none; }
+    .buscador input:focus { border-color: var(--primary); }
+
+    /* ── Grilla de tarjetas ── */
+    .grid-modelos { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
+
+    .modelo-card { background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border); border-radius: 18px; padding: 1.75rem; display: flex; flex-direction: column; transition: all 0.3s; }
+    .modelo-card:hover { transform: translateY(-4px); border-color: rgba(16,185,129,0.4); }
+
+    .card-badges { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+    .badge { padding: 0.35rem 0.9rem; border-radius: 999px; font-size: 0.78rem; font-weight: 700; }
+    .badge-yolo { background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.3); color: #60A5FA; }
+    .badge-activo { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: #34D399; }
+    .badge-inactivo { background: rgba(148,163,184,0.12); border: 1px solid rgba(148,163,184,0.3); color: #94A3B8; }
+
+    .modelo-card h3 { font-size: 1.25rem; font-weight: 700; margin: 0 0 0.6rem; }
+    .modelo-card .descripcion { color: var(--text-muted); font-size: 0.92rem; margin: 0 0 1.25rem; flex-grow: 1; }
+
+    .card-meta { display: flex; gap: 1.25rem; font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1.25rem; flex-wrap: wrap; }
+    .card-meta span { display: inline-flex; align-items: center; gap: 0.35rem; }
+
+    .card-acciones { display: flex; gap: 0.6rem; }
+    .btn-ejecutar { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.85rem; background: linear-gradient(135deg, var(--theme-grad-1), var(--theme-grad-2)); color: white; border-radius: 12px; font-weight: 700; font-size: 0.95rem; text-decoration: none; transition: all 0.3s; }
+    .btn-ejecutar:hover { filter: brightness(1.1); }
+    .btn-eliminar { padding: 0.85rem 1rem; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #FCA5A5; border-radius: 12px; cursor: pointer; transition: all 0.3s; }
+    .btn-eliminar:hover { background: rgba(239,68,68,0.2); }
+
+    .vacio { text-align: center; padding: 5rem 2rem; color: var(--text-muted); border: 2px dashed rgba(255,255,255,0.1); border-radius: 18px; }
+
+    /* Modelo inactivo: el botón se muestra deshabilitado, no invita al clic */
+    .btn-inactivo {
+        background: rgba(255,255,255,0.05) !important;
+        color: var(--text-muted) !important;
+        border: 1px solid var(--glass-border);
+        cursor: not-allowed;
+        opacity: 0.75;
+    }
+    .btn-inactivo:hover { transform: none; filter: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="yolo-container">
+
+    {# ── Encabezado + botón de registro ─────────────────────────────────────── #}
+    <div class="yolo-header">
+        <div>
+            <h1>Detección de <span>Objetos YOLO</span></h1>
+            <p>Ejecuta modelos YOLO para detectar y localizar objetos dentro de una imagen.</p>
+        </div>
+        <div style="display:flex; gap:0.8rem; flex-wrap:wrap;">
+            <a href="{% url 'yolo_galeria' %}" style="display:inline-flex; align-items:center; gap:0.5rem; padding:0.75rem 1.4rem; background:rgba(255,255,255,0.06); border:1px solid var(--glass-border); color:var(--text-main); border-radius:12px; font-size:0.92rem; font-weight:600; text-decoration:none;">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                Galería de capturas
+            </a>
+            {% if es_admin %}
+            <a href="{% url 'yolo_crear' %}" class="btn-nuevo">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Agregar Modelo YOLO
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ── Buscador ───────────────────────────────────────────────────────────── #}
+    <form method="GET" class="buscador">
+        <input type="text" name="q" value="{{ query }}" placeholder="Buscar modelo YOLO por nombre o descripción...">
+    </form>
+
+    {# ── Grilla de modelos ──────────────────────────────────────────────────── #}
+    {% if modelos %}
+    <div class="grid-modelos">
+        {% for m in modelos %}
+        <div class="modelo-card">
+            <div class="card-badges">
+                <span class="badge badge-yolo">YOLO · Detección</span>
+                <span class="badge {% if m.estado == 'activo' %}badge-activo{% else %}badge-inactivo{% endif %}">
+                    {{ m.get_estado_display }}
+                </span>
+            </div>
+
+            <h3>{{ m.nombre }}</h3>
+            <p class="descripcion">{{ m.descripcion|truncatechars:110 }}</p>
+
+            <div class="card-meta">
+                <span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+                    {{ m.fecha_creacion|date:"d M Y" }}
+                </span>
+                <span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    {{ m.usuario.username }}
+                </span>
+                <span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                    {{ m.tamano_entrada }}×{{ m.tamano_entrada }} px
+                </span>
+            </div>
+
+            <div class="card-acciones">
+                {% if m.estado == 'activo' %}
+                <a href="{% url 'yolo_ejecutar' m.pk %}" class="btn-ejecutar">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Detectar Objetos
+                </a>
+                {% else %}
+                <span class="btn-ejecutar btn-inactivo" title="El modelo está inactivo y no admite detecciones">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>
+                    Modelo inactivo
+                </span>
+                {% endif %}
+                <a href="{% url 'yolo_detalle' m.pk %}" class="btn-eliminar" title="Ver ficha del modelo" style="text-decoration:none; color:var(--text-muted);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                </a>
+                {% if es_admin %}
+                <form method="POST" action="{% url 'yolo_eliminar' m.pk %}" onsubmit="return confirm('¿Eliminar el modelo {{ m.nombre }}?');" style="margin:0;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-eliminar" title="Eliminar modelo">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    {# ── Estado vacío ───────────────────────────────────────────────────────── #}
+    <div class="vacio">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" style="margin-bottom:1rem; opacity:0.5;"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg>
+        <p style="font-size:1.05rem; margin-bottom:0.5rem;">Todavía no hay modelos YOLO registrados.</p>
+        {% if es_admin %}
+        <p style="font-size:0.9rem;">Usa el botón «Agregar Modelo YOLO» para subir tu primer archivo .onnx.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+{% comment %}
+============================================================
+modelo_ejecutar.html — Inferencia en Línea (Predicción)
+============================================================
+Propósito: Interfaz para subir una imagen y enviarla al motor
+de inferencia ONNX. Muestra la clase predicha y confianza.
+
+Contexto:
+- modelo: Instancia de ModeloML.
+- resultado: Dict {'clase': str, 'confianza': float}.
+- error: Mensaje de error en caso de fallo en la inferencia.
+============================================================
+{% endcomment %}
+
+{% block title %}Ejecutar: {{ modelo.nombre }} — AgroVision{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ── Contenedor principal de la página ── */
+    .ejecutar-container { max-width: 1100px; margin: 2.5rem auto; padding: 0 1.5rem 3rem; }
+
+    /* ── Breadcrumb de navegación (migas de pan) ── */
+    .breadcrumb { display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .breadcrumb a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+    .breadcrumb a:hover { color: var(--theme-text-hl); }
+
+    /* ── Bloque de título centrado de la página ── */
+    .header-ejecutar { text-align: center; margin-bottom: 2.5rem; }
+    .header-ejecutar h1 { font-size: 2.2rem; font-weight: 700; margin-bottom: 0.5rem; }
+    /* El span aplica un gradiente de texto al nombre del modelo */
+    .header-ejecutar h1 span { background: linear-gradient(to right, var(--theme-grad-1), var(--theme-text-hl)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .header-ejecutar p { color: var(--text-muted); }
+
+    /* ── Layout principal: dos columnas (izquierda: input | derecha: resultado) ── */
+    .grid-inferencia { display: grid; grid-template-columns: 5fr 6fr; gap: 2rem; }
+    /* En móvil se apilan verticalmente */
+    @media (max-width: 768px) { .grid-inferencia { grid-template-columns: 1fr; } }
+
+    /* ── Tarjeta de vidrio (glassmorphism) para cada columna ── */
+    .glass-card { background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border); border-radius: 18px; padding: 2rem; position: relative; overflow: hidden; }
+    /* Efecto de brillo radial decorativo (pseudo-elemento) */
+    .glass-card::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 70%); z-index: 0; pointer-events: none; }
+
+    /* z-index: 1 para que el contenido quede por encima del efecto decorativo */
+    .card-content { position: relative; z-index: 1; }
+    .card-title { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; color: var(--theme-text-hl); margin-bottom: 1.5rem; }
+
+    /* ── Zona de carga de imagen (drag & drop) ── */
+    .upload-zone { border: 2px dashed rgba(255,255,255,0.2); border-radius: 14px; padding: 3rem 1rem; text-align: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); background: rgba(0,0,0,0.2); position: relative; }
+    /* Efecto visual al pasar el puntero o arrastrar un archivo encima */
+    .upload-zone:hover, .upload-zone.dragover { border-color: var(--primary); background: rgba(var(--primary-rgb), 0.05); }
+    .upload-icon { color: var(--primary); margin-bottom: 1rem; opacity: 0.8; }
+    .upload-zone p { margin: 0; color: var(--text-muted); font-size: 0.95rem; }
+    .upload-zone strong { color: var(--text-main); }
+
+    /* El input file real está invisible y ocupa todo el área para capturar clicks/drags */
+    #file-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+
+    /* ── Previsualización de la imagen seleccionada ── */
+    /* Oculto por defecto; se muestra por JS cuando el usuario selecciona un archivo */
+    #preview-container { margin-top: 1.5rem; display: none; text-align: center; }
+    #preview-container img { max-width: 100%; max-height: 250px; border-radius: 8px; border: 1px solid var(--glass-border); box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+
+    /* ── Caja de resultado de predicción ── */
+    .resultado-box { text-align: center; padding: 2rem 1rem; }
+    /* Estado vacío (sin resultado aún) */
+    .resultado-vacio { color: var(--text-muted); opacity: 0.6; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 200px; }
+
+    /* Número/nombre de la clase predicha en tamaño grande y gradiente verde */
+    .prediccion-numero { font-size: clamp(2rem, 6vw, 4rem); font-weight: 800; word-wrap: break-word; line-height: 1.1; margin: 1rem 0; padding: 0 10px; background: linear-gradient(135deg, #10B981, #34D399); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 4px 10px rgba(16,185,129,0.3)); }
+    .prediccion-label { font-size: 1.1rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+    /* Barra de progreso que representa el porcentaje de confianza */
+    .confianza-barra { background: rgba(255,255,255,0.1); border-radius: 999px; height: 8px; width: 100%; overflow: hidden; margin-top: 1.5rem; }
+    .confianza-nivel { background: linear-gradient(90deg, var(--theme-grad-1), var(--theme-grad-2)); height: 100%; border-radius: 999px; transition: width 1s ease-out; }
+    .confianza-texto { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); margin-top: 0.5rem; }
+
+    /* ── Botón de envío del formulario ── */
+    /* Oculto por defecto; aparece solo cuando el usuario selecciona una imagen */
+    .btn-submit { width: 100%; padding: 1rem; background: linear-gradient(135deg, var(--theme-grad-1), var(--theme-grad-2)); color: white; border: none; border-radius: 12px; font-size: 1.05rem; font-weight: 700; cursor: pointer; transition: all 0.3s; margin-top: 1.5rem; display: none; }
+    .btn-submit:hover { filter: brightness(1.1); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(var(--primary-rgb), 0.3); }
+    /* Estado deshabilitado mientras el modelo procesa (evita doble envío) */
+    .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* ── Spinner de carga animado ── */
+    /* Oculto por defecto; se activa al enviar el formulario */
+    .loader { display: none; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; margin-right: 0.5rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ejecutar-container">
+
+    {# ── Breadcrumb + botón "Volver al Detalle" ─────────────────────────────── #}
+    <div class="breadcrumb" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <div>
+            {# Ruta de navegación: Dashboard → Modelos ML → [Nombre Modelo] → Inferencia #}
+            <a href="{% url 'dashboard' %}">Dashboard</a> <span>/</span>
+            <a href="{% url 'modelos_lista' %}">Modelos ML</a> <span>/</span>
+            <a href="{% url 'modelo_detalle' modelo.pk %}">{{ modelo.nombre }}</a> <span>/</span>
+            <span>Inferencia</span>
+        </div>
+
+        {# Botón para volver a la página de detalle del modelo sin ejecutar nada #}
+        <a href="{% url 'modelo_detalle' modelo.pk %}" class="btn-action" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, var(--theme-grad-1), var(--theme-grad-2)); color: white; border: none; border-radius: 12px; font-size: 0.95rem; font-weight: 600; text-decoration: none; transition: all 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Volver al Detalle
+        </a>
+    </div>
+
+    {# ── Título de la página ────────────────────────────────────────────────── #}
+    <div class="header-ejecutar">
+        <h1>Inferencia: <span>{{ modelo.nombre }}</span></h1>
+        <p>Sube una imagen para probar la predicción de este modelo.</p>
+    </div>
+
+    {# ── Alerta de error (solo se muestra si views.py envió un mensaje de error) ─ #}
+    {% if error %}
+    <div class="alert" style="background: rgba(239,68,68,0.1); border-left: 4px solid #F87171; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; color: #FCA5A5;">
+        <strong>Error:</strong> {{ error }}
+    </div>
+    {% endif %}
+
+    {# ── Cuadrícula de dos columnas: Entrada (izquierda) | Resultado (derecha) ─ #}
+    <div class="grid-inferencia">
+
+        {# ── COLUMNA IZQUIERDA: Carga de Imagen y Formulario de Envío ──────────── #}
+        <div class="glass-card">
+            <div class="card-content">
+                <h2 class="card-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    Imagen de Entrada
+                </h2>
+
+                {# Formulario multipart (necesario para envío de archivos binarios como imágenes) #}
+                <form method="POST" enctype="multipart/form-data" id="inferencia-form">
+                    {% csrf_token %} {# Token de seguridad contra ataques CSRF #}
+
+                    {# Zona de arrastrar y soltar / click para seleccionar imagen #}
+                    <div class="upload-zone" id="drop-zone">
+                        <svg class="upload-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <p><strong>Haz clic</strong> o arrastra una imagen aquí</p>
+                        <p style="font-size: 0.8rem; margin-top: 0.5rem; opacity: 0.7;">Formatos soportados: JPG, PNG, WEBP (Ideal 28x28px)</p>
+                        {# Input file invisible — el JS lo conecta con el área de drop #}
+                        <input type="file" name="imagen" id="file-input" accept="image/png, image/jpeg, image/webp" required>
+                    </div>
+
+                    {# Previsualización de la imagen — oculta hasta que el usuario seleccione un archivo #}
+                    <div id="preview-container">
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Previsualización:</p>
+                        <img id="image-preview" src="#" alt="Vista previa">
+                    </div>
+
+                    {# Campo de ubicación (finca, lote, sector) — requerido #}
+                    <div style="margin-top: 1.25rem;">
+                        <label for="ubicacion" style="font-size: 0.85rem; font-weight: 600; color: #CBD5E1; display: block; margin-bottom: 0.4rem;">
+                            📍 Ubicación (requerido)
+                        </label>
+                        <input type="text" id="ubicacion" name="ubicacion" required
+                               placeholder="Ej: Finca El Diamante, Lote 3"
+                               style="width:100%; padding:0.75rem 1rem; background:rgba(15,23,42,0.5); border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:#F8FAFC; font-size:0.9rem; font-family:'Outfit',sans-serif; outline:none;">
+                        <small style="color: var(--text-muted); font-size:0.78rem;">Indica el lugar exacto donde se está aplicando el modelo.</small>
+                    </div>
+
+                    {# Botón de ejecutar — oculto por CSS, se muestra por JS al seleccionar imagen #}
+                    <button type="submit" class="btn-submit" id="btn-ejecutar">
+                        <div class="loader" id="loader"></div>
+                        <span>Ejecutar Modelo</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        {# ── COLUMNA DERECHA: Panel de Resultado de la Predicción ──────────────── #}
+        <div class="glass-card">
+            <div class="card-content" style="height: 100%;">
+                <h2 class="card-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    Resultado Predicho
+                </h2>
+
+                <div class="resultado-box">
+                    {# Mostrar resultado solo cuando views.py lo envía (después de un POST exitoso) #}
+                    {% if resultado %}
+                        {# Etiqueta de la clase predicha por el modelo #}
+                        <div class="prediccion-label">Clase Detectada</div>
+                        {# Nombre o índice de la clase con mayor probabilidad (estilo grande y verde) #}
+                        <div class="prediccion-numero">{{ resultado.clase }}</div>
+
+                        {# Barra de confianza y porcentaje #}
+                        <div style="text-align: left; margin-top: 2rem;">
+                            <div class="confianza-texto">
+                                <span>Porcentaje de Confianza</span>
+                                <strong>{{ resultado.confianza }}%</strong>
+                            </div>
+                            <div class="confianza-barra">
+                                <div class="confianza-nivel" data-confianza="{{ resultado.confianza }}"></div>
+                            </div>
+                            <script>
+                                (function() {
+                                    var nivel = document.querySelector('.confianza-nivel:last-of-type');
+                                    if(nivel && nivel.dataset.confianza) {
+                                        nivel.style.width = nivel.dataset.confianza + '%';
+                                    }
+                                })();
+                            </script>
+                        </div>
+                        {# Enlace al historial para ver el registro guardado #}
+                        <a href="{% url 'historial_lista' %}" style="display:inline-flex; align-items:center; gap:0.5rem; margin-top:1.75rem; padding:0.65rem 1.25rem; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3); border-radius:10px; color:#34D399; font-size:0.87rem; font-weight:600; text-decoration:none;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                            Ver en Historial
+                        </a>
+                    {% else %}
+                        {# Estado vacío: el usuario aún no ha enviado ninguna imagen #}
+                        <div class="resultado-vacio">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 1rem;"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                            <p>Sube una imagen y ejecuta el modelo para ver los resultados de la IA.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    /**
+     * Lógica de la interfaz de carga de imagen e interacción del formulario.
+     *
+     * Responsabilidades:
+     *  1. Habilitar drag & drop visual sobre la zona de upload.
+     *  2. Previsualizar la imagen seleccionada (via FileReader API).
+     *  3. Mostrar el botón "Ejecutar Modelo" después de seleccionar imagen.
+     *  4. Deshabilitar el botón y mostrar spinner al enviar el formulario
+     *     (evita doble envío y da feedback visual de procesamiento).
+     */
+    document.addEventListener('DOMContentLoaded', function() {
+        // Referencias a los elementos del DOM
+        const fileInput = document.getElementById('file-input');
+        const dropZone = document.getElementById('drop-zone');
+        const previewContainer = document.getElementById('preview-container');
+        const imagePreview = document.getElementById('image-preview');
+        const btnSubmit = document.getElementById('btn-ejecutar');
+        const form = document.getElementById('inferencia-form');
+        const loader = document.getElementById('loader');
+
+        // ── Drag & Drop: prevenir comportamiento por defecto del navegador ───────
+        // Sin esto, el browser abriría el archivo en una pestaña nueva al soltarlo
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+
+        // Efecto visual: añadir clase 'dragover' al entrar/pasar sobre la zona
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+        });
+
+        // Efecto visual: quitar clase 'dragover' al salir o soltar
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+        });
+
+        // ── Capturar el archivo soltado en la zona de drop ───────────────────────
+        dropZone.addEventListener('drop', (e) => {
+            let dt = e.dataTransfer;
+            let files = dt.files;
+            if(files.length > 0) {
+                fileInput.files = files;  // Asignar el archivo droped al <input> real
+                handleFiles(files[0]);
+            }
+        });
+
+        // ── Capturar cambio via click clásico en el input file ───────────────────
+        fileInput.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                handleFiles(this.files[0]);
+            }
+        });
+
+        /**
+         * Procesa el archivo seleccionado:
+         *  - Valida que sea una imagen.
+         *  - Lee el archivo con FileReader para mostrar la previsualización.
+         *  - Revela el botón de envío.
+         */
+        function handleFiles(file) {
+            if (!file.type.match('image.*')) {
+                alert('Por favor, selecciona solo imágenes (JPG, PNG).');
+                return;
+            }
+
+            // FileReader API: leer el archivo como Data URL (base64) para mostrarlo en <img>
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imagePreview.src = e.target.result;   // Asignar la imagen al tag <img>
+                previewContainer.style.display = 'block';  // Mostrar el contenedor
+                btnSubmit.style.display = 'flex';          // Revelar el botón de envío
+            }
+            reader.readAsDataURL(file);
+        }
+
+        // ── Estado de carga al enviar el formulario ──────────────────────────────
+        // Deshabilita el botón para evitar múltiples envíos mientras el servidor procesa
+        form.addEventListener('submit', function() {
+            btnSubmit.disabled = true;
+            loader.style.display = 'block';  // Mostrar spinner animado
+            btnSubmit.querySelector('span').textContent = 'Procesando...';
+        });
+
+        // ── Scroll automático al resultado en pantallas pequeñas ─────────────────
+        // Si ya hay un resultado en la página (POST con resultado), hacer scroll suave
+        const hasResultado = document.getElementById('resultado-data') !== null;
+        if (hasResultado) {
+            if(window.innerWidth < 768) {
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            }
+        }
+    });
+</script>
+{% endblock %}

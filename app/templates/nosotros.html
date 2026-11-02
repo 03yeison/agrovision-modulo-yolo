@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% comment %}
+============================================================
+nosotros.html — Información Institucional y del Proyecto
+============================================================
+Propósito: Explica la justificación, solución y alcance
+del proyecto AgroVision, así como los autores y tecnología.
+============================================================
+{% endcomment %}
+
+{% block title %}Nosotros | AgroVision{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-header {
+        margin-bottom: 3rem;
+        text-align: center;
+    }
+
+    .page-header h1 {
+        font-size: 3rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        background: linear-gradient(to right, #fff, #94A3B8);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .page-header h1 span {
+        background: linear-gradient(to right, var(--theme-text-hl), var(--primary));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .page-header p {
+        color: var(--text-muted);
+        font-size: 1.2rem;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .about-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        margin-bottom: 3rem;
+    }
+
+    .about-section h2 {
+        font-size: 1.75rem;
+        margin-bottom: 1.5rem;
+        color: var(--text-main);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .about-section h2 svg {
+        color: var(--primary);
+    }
+
+    .about-text {
+        color: var(--text-muted);
+        line-height: 1.7;
+        font-size: 1.05rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .highlight-box {
+        background: rgba(79, 70, 229, 0.1);
+        border: 1px solid rgba(79, 70, 229, 0.3);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-top: 2rem;
+    }
+
+    .highlight-box h3 {
+        color: var(--theme-text-hl);
+        margin-bottom: 0.5rem;
+        font-size: 1.2rem;
+    }
+
+    .team-badge {
+        display: inline-block;
+        padding: 0.4rem 0.8rem;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--glass-border);
+        border-radius: 6px;
+        font-size: 0.9rem;
+        color: #C084FC;
+        margin-right: 0.5rem;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+
+    @media (max-width: 868px) {
+        .about-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .page-header h1 {
+            font-size: 2.2rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Conoce <span>AgroVision</span></h1>
+    <p>Centro de investigación aplicada en Machine Learning</p>
+</div>
+
+<div class="about-grid">
+    {% comment %} El Problema / Justificación {% endcomment %}
+    <div class="m-card">
+        <div class="about-section">
+            <h2>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                </svg>
+                El Desafío
+            </h2>
+            <div class="about-text">
+                <p>En entornos académicos y de investigación, los modelos de Machine Learning (ML) suelen desarrollarse
+                    en <strong>entornos aislados y dispersos</strong>. Esto dificulta significativamente el acceso a los
+                    modelos, la replicabilidad histórica de los resultados y la documentación formal de los experimentos
+                    generados.</p>
+            </div>
+            <div class="about-text">
+                <p>Encontramos una fuerte <strong>barrera técnica</strong>: la falta de una plataforma centralizada
+                    impide que usuarios sin conocimientos técnicos avanzados de programación puedan llegar a ejecutar o
+                    interactuar con estos modelos de IA libremente.</p>
+            </div>
+        </div>
+    </div>
+
+    {% comment %} La Solución / Proyecto {% endcomment %}
+    <div class="m-card">
+        <div class="about-section">
+            <h2>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                </svg>
+                Nuestra Solución
+            </h2>
+            <div class="about-text">
+                <p>Hemos desarrollado esta plataforma web interactiva enfocada estrictamente en <strong>administrar,
+                        documentar y ejecutar modelos ML previamente desarrollados</strong>.</p>
+            </div>
+            <div class="about-text">
+                <p>Nuestra meta final es organizar la información y facilitar inmensamente la reutilización del valioso
+                    conocimiento generado dentro de proyectos de investigación.</p>
+            </div>
+
+            <div class="highlight-box">
+                <h3>Alcance del Proyecto</h3>
+                <p style="color:var(--text-muted); font-size:0.95rem;">El proyecto se centra exclusivamente en la
+                    gestión y ejecución de modelos existentes garantizados. Se deja por fuera de esta herramienta el
+                    proceso de entrenamiento de <i>nuevos</i> modelos, para enfocarse en la experiencia del usuario
+                    final y métricas de desempeño.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
